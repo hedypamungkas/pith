@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # Key-free by design: no services (redis/postgres/minio/vault), no docker
+      # run, no migrate, no third-party API secrets. Everything below must pass
+      # with zero environment.
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test:unit
+      - run: npm run test:integration:nock
+      - run: npm run test:smoke
+      # The real-Chromium suite: browser binary is fetched on demand, so it
+      # installs after the key-free suites prove green. Static-only skeletons
+      # still pass without it; browser-dependent tests land in step 2.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:integration:real

@@ -1,0 +1,30 @@
+name: accuracy-nightly
+
+# The EXTRACTION_API_KEY / BRAVE_API_KEY-gated accuracy + live-search benchmark.
+# Runs on a schedule (and manually), NEVER on a push or PR — it exercises paid
+# third-party APIs and must never block a code change.
+on:
+  schedule:
+    - cron: "17 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  accuracy:
+    runs-on: ubuntu-latest
+    env:
+      EXTRACTION_API_KEY: ${{ secrets.EXTRACTION_API_KEY }}
+      EXTRACTION_BASE_URL: ${{ secrets.EXTRACTION_BASE_URL }}
+      EXTRACTION_MODEL: ${{ secrets.EXTRACTION_MODEL }}
+      BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run test:accuracy

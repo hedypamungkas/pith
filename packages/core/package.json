@@ -1,0 +1,38 @@
+{
+  "name": "@pith/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pith core — the web-for-LLMs engine (scrape, crawl, structured extract, search, MCP).",
+  "license": "Apache-2.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./http": {
+      "types": "./dist/http/index.d.ts",
+      "import": "./dist/http/index.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp/index.d.ts",
+      "import": "./dist/mcp/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist", "src", "README.md", "LICENSE"],
+  "engines": { "node": ">=18.18.0" },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "playwright": "^1.61.0"
+  },
+  "peerDependenciesMeta": {
+    "playwright": { "optional": true }
+  }
+}

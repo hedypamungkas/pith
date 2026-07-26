@@ -1,0 +1,37 @@
+{
+  "name": "pith",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pith — the essential web, for agents. OSS engine for clean, LLM-ready web content (scrape, crawl, extract, search, MCP).",
+  "license": "Apache-2.0",
+  "workspaces": ["packages/*"],
+  "engines": { "node": ">=18.18.0" },
+  "scripts": {
+    "build": "npm run build -w @pith/core",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:smoke": "vitest run --project smoke",
+    "test:integration:real": "vitest run --project integration-real",
+    "test:integration:nock": "vitest run --project integration-nock",
+    "test:accuracy": "vitest run --project accuracy",
+    "prepublishOnly": "npm run test:smoke && npm run typecheck && npm run lint"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.15",
+    "eslint": "^9.10.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.31.0",
+    "nock": "^13.5.4",
+    "playwright": "^1.61.1",
+    "prettier": "^3.3.3",
+    "tsup": "^8.3.0",
+    "typescript": "^5.5.4",
+    "typescript-eslint": "^8.4.0",
+    "vitest": "^2.0.5"
+  }
+}
