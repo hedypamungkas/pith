@@ -49,8 +49,11 @@ jobs:
       - name: Upgrade npm (>= 11.5.1 for Trusted Publishing)
         run: npm install -g npm@latest
 
-      # Keyless publish — no NPM_TOKEN / NODE_AUTH_TOKEN. Trusted Publishing +
-      # provenance are implicit via id-token: write + the package's trusted
-      # publisher config. publishConfig.access=public handles public access.
+      # Keyless publish — no NPM_TOKEN / NODE_AUTH_TOKEN. Runs from the package
+      # dir (bare `npm publish`, matching npm's Trusted Publishing example — the
+      # `-w` workspace form does not trigger the OIDC publish-auth path).
+      # Trusted Publishing + provenance are implicit via id-token: write + the
+      # package's trusted publisher config; publishConfig.access=public sets access.
       - name: Publish
-        run: npm publish -w @use-pith/core
+        working-directory: packages/core
+        run: npm publish
