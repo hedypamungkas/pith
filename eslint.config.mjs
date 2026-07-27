@@ -21,7 +21,9 @@ export default tseslint.config(
         { argsIgnorePattern: "^_" },
       ],
       // The architectural invariant: the OSS core must never import host
-      // infrastructure. Firmed-up once those dirs exist in later steps.
+      // infrastructure. The hard guard is the smoke test
+      // (no-infra-on-import.test.ts); these zones make a static import of any
+      // adapter package fail lint too. Belt-and-suspenders.
       "import/no-restricted-paths": [
         "error",
         {
@@ -31,6 +33,12 @@ export default tseslint.config(
               from: "./packages/**/{db,queue,storage,config,billing,gdpr,pilot,freshness}/**/*",
               message:
                 "The OSS core must not import host infrastructure (db/queue/storage/config/billing/gdpr/pilot/freshness). Inject it via a CorePorts adapter instead.",
+            },
+            {
+              target: "./packages/core/src/**/*",
+              from: "./packages/adapters-*/**/*",
+              message:
+                "The OSS core must not import adapter packages (@use-pith/adapters-* pull pg/minio/bullmq). Inject a backend via a CorePorts adapter instead.",
             },
           ],
         },

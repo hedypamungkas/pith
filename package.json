@@ -8,7 +8,7 @@
   "workspaces": ["packages/*"],
   "engines": { "node": ">=18.18.0" },
   "scripts": {
-    "build": "npm run build -w @use-pith/core",
+    "build": "npm run build -w @use-pith/core && npm run build -w @use-pith/adapters-pg",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",

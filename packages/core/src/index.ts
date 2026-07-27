@@ -84,6 +84,7 @@ export {
   parseCrawlPageObjectKey,
 } from "./crawl/crawlPageContentStore.js";
 export type {
+  CreateCrawlInput,
   CrawlBounds,
   CrawlStatus,
   CrawlPageJobData,
