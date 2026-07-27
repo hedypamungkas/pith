@@ -13,8 +13,12 @@ const MIGRATIONS_DIR = join(here, "..", "migrations");
  * `pg` and PGlite (neither reliably returns a usable result for a
  * multi-statement string in the minimal `Queryable` shape).
  *
- * Migration files must follow the "one `;`-terminated statement per DDL
- * operation, no `;` inside strings/bodies" rule.
+ * Limitation: the comment strip is textual, so a `--` inside a string literal
+ * (e.g. `DEFAULT '--header'`) is stripped too, and a `;` inside a string or
+ * function body splits prematurely. Migration files must therefore follow the
+ * "one `;`-terminated statement per DDL operation, no `;` and no `--` inside
+ * string literals or function bodies" rule. Switch to a real tokenizer if a
+ * future migration needs either.
  */
 function splitStatements(sql: string): string[] {
   const stripped = sql
@@ -47,9 +51,32 @@ export async function runMigrations(client: Queryable): Promise<void> {
     );
   }
   for (const file of files) {
-    const sql = await readFile(join(MIGRATIONS_DIR, file), "utf8");
-    for (const stmt of splitStatements(sql)) {
-      await client.query(stmt);
+    let sql: string;
+    try {
+      sql = await readFile(join(MIGRATIONS_DIR, file), "utf8");
+    } catch (err) {
+      throw new Error(
+        `@use-pith/adapters-pg: could not read migration ${file}: ${
+          (err as Error).message
+        }`,
+      );
+    }
+    const statements = splitStatements(sql);
+    for (let i = 0; i < statements.length; i++) {
+      const stmt = statements[i];
+      if (!stmt) continue; // splitStatements already filters empties
+      try {
+        await client.query(stmt);
+      } catch (err) {
+        // Surface the offending file + statement index so a failure that only
+        // reproduces on real Postgres (e.g. a CHECK that holds on PG but not
+        // PGlite) is actionable instead of a bare "syntax error at or near …".
+        throw new Error(
+          `@use-pith/adapters-pg: migration ${file} statement #${i + 1} failed: ${
+            (err as Error).message
+          }\n-- statement:\n${stmt}`,
+        );
+      }
     }
   }
 }

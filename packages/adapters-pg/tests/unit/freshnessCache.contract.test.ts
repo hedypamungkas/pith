@@ -61,9 +61,11 @@ describe("PgFreshnessCache (contract parity)", () => {
       crawledAt: T0,
       content: content("# standard"),
     });
-    expect((await cache.tryGet("https://x.test"))?.watchedTier).toBe("standard");
+    let r = await cache.tryGet("https://x.test");
+    expect(r?.watchedTier).toBe("standard");
+    expect(r?.watchedTierProactiveRecrawl).toBe(false);
 
-    // news (3600) is stricter than standard (86400) -> adopted.
+    // news (3600) is stricter than standard (86400) -> adopted (tier + flag).
     await cache.record({
       url: "https://x.test",
       requestedTier: "news",
@@ -72,11 +74,14 @@ describe("PgFreshnessCache (contract parity)", () => {
       crawledAt: T0,
       content: content("# news"),
     });
-    let r = await cache.tryGet("https://x.test");
+    r = await cache.tryGet("https://x.test");
     expect(r?.watchedTier).toBe("news");
     expect(r?.watchedTierMaxStalenessSeconds).toBe(3600);
+    expect(r?.watchedTierProactiveRecrawl).toBe(true); // adopted with the tier
+    // nextDueAt recomputed on the ON CONFLICT path from the resolved (tighter) max.
+    expect(r?.nextDueAt).toEqual(new Date(T0.getTime() + 3600 * 1000));
 
-    // standard again must NOT loosen back.
+    // standard again must NOT loosen back (tier, max, AND proactive flag stay).
     await cache.record({
       url: "https://x.test",
       requestedTier: "standard",
@@ -88,8 +93,32 @@ describe("PgFreshnessCache (contract parity)", () => {
     r = await cache.tryGet("https://x.test");
     expect(r?.watchedTier).toBe("news");
     expect(r?.watchedTierMaxStalenessSeconds).toBe(3600);
+    expect(r?.watchedTierProactiveRecrawl).toBe(true); // not loosened
+
+    // A later crawl with a LOOSER tier: tier/max stay tightened, but content +
+    // crawledAt always adopt the incoming (last-write-wins) values, and
+    // nextDueAt is recomputed from the resolved max over the LATER crawledAt —
+    // exercising EXCLUDED.crawled_at + make_interval(LEAST(max)) on conflict.
+    const later = new Date(T0.getTime() + 10_000);
+    await cache.record({
+      url: "https://x.test",
+      requestedTier: "standard",
+      requestedTierMaxStalenessSeconds: 86400,
+      requestedTierProactiveRecrawl: false,
+      crawledAt: later,
+      content: content("# standard-later"),
+    });
+    r = await cache.tryGet("https://x.test");
+    expect(r?.watchedTier).toBe("news"); // still tightened
+    expect(r?.watchedTierMaxStalenessSeconds).toBe(3600);
+    expect(r?.crawledAt).toEqual(later); // content/crawledAt refreshed
+    expect(r?.content.markdown).toBe("# standard-later");
+    expect(r?.nextDueAt).toEqual(new Date(later.getTime() + 3600 * 1000));
   });
 
+  // PGlite is single-threaded, so this checks the upsert CONVERGES to the
+  // tighter tier — real concurrency under parallelism is proven by the
+  // containerized integration-real suite, not here.
   it("concurrent records of a new URL end on the tighter tier", async () => {
     const cache = new PgFreshnessCache(h.client);
     await Promise.all([

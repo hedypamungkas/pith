@@ -30,7 +30,7 @@ interface PageRow {
   url: string;
   depth: number;
   status: PageStatus;
-  attempt_count: string | number;
+  attempt_count: number;
   last_error: string | null;
   request_id: string | null;
   discovered_at: unknown;
@@ -55,8 +55,11 @@ interface CountRow {
  *
  *  - `insertDiscoveredPages` enforces `maxPages` + `(crawl_id,url)` dedup
  *    under a serialized critical section (`SELECT … FOR UPDATE` on the
- *    crawl_jobs row), with children inserted before the parent is marked
- *    success — a sibling finalizing at that instant still sees pending work.
+ *    crawl_jobs row). The same row lock is taken by `finalizeCrawlIfDone`, so a
+ *    concurrent finalizer is serialized against inserts and cannot read a
+ *    pre-insert page count and prematurely complete. (The engine separately
+ *    orders child inserts before `markPageSuccess` — see `pureCrawler.ts` — but
+ *    that ordering lives in the engine; `markPageSuccess` itself takes no lock.)
  *  - `finalizeCrawlIfDone` treats paused pages as outstanding (no finalize),
  *    and maps the terminal status (complete / partial / failed) exactly.
  *  - resume/redelivery idempotency is the `getPageStatus` gate.
@@ -64,6 +67,12 @@ interface CountRow {
 export class PgCrawlStateStore implements CrawlStateStore {
   constructor(private readonly client: Queryable) {}
 
+  /**
+   * Insert the crawl job + its pending root page, returning the root page id.
+   * Not idempotent: a duplicate `input.id` violates the `crawl_jobs` primary
+   * key and throws (the in-memory default silently overwrites — callers must
+   * not retry `createCrawl` with the same id).
+   */
   async createCrawl(input: CreateCrawlInput): Promise<number> {
     return this.client.tx(async (q) => {
       await q.query(
@@ -91,7 +100,15 @@ export class PgCrawlStateStore implements CrawlStateStore {
          RETURNING id`,
         [input.id, input.rootUrl],
       );
-      return toNumber(rows[0]!.id);
+      const rootRow = rows[0];
+      if (!rootRow) {
+        // RETURNING yields no row only if a BEFORE INSERT trigger / RLS cancels
+        // the insert — surface it with context rather than an opaque crash.
+        throw new Error(
+          `PgCrawlStateStore.createCrawl: root-page INSERT for crawl ${input.id} returned no row (trigger/RLS?)`,
+        );
+      }
+      return toNumber(rootRow.id);
     });
   }
 
@@ -176,7 +193,15 @@ export class PgCrawlStateStore implements CrawlStateStore {
       [crawlId],
     );
     const r = rows[0];
-    if (!r) return { total: 0, pending: 0, succeeded: 0, failed: 0, paused: 0 };
+    // `SELECT count(*) ...` always returns exactly one row; reaching here means
+    // the query itself is broken (connection lost, relation missing, schema
+    // drift). Returning zeros would make `finalizeCrawlIfDone` treat a live
+    // crawl as complete (zero pending/paused/failed → 'complete') — fail loudly.
+    if (!r) {
+      throw new Error(
+        `PgCrawlStateStore.countPages: COUNT(*) returned no row for crawl_id=${crawlId} (connection or schema broken)`,
+      );
+    }
     return {
       total: toNumber(r.total),
       pending: toNumber(r.pending),
@@ -288,18 +313,23 @@ export class PgCrawlStateStore implements CrawlStateStore {
   }
 
   async listPausedPages(authSessionId: string): Promise<ResumablePausedPage[]> {
-    const { rows } = await this.client.query<
-      PageRow & {
-        api_key_id: number;
-        max_depth: number;
-        max_pages: number;
-        same_domain_only: boolean;
-        include_patterns: string[] | null;
-        exclude_patterns: string[] | null;
-        ignore_robots_txt: boolean;
-      }
-    >(
-      `SELECT p.id, p.crawl_id, p.url, p.depth, p.request_id,
+    // Select exactly the columns mapped below (no `request_id` — the returned
+    // ResumablePausedPage carries none), typed precisely so the row type cannot
+    // assert a column the SELECT does not return.
+    const { rows } = await this.client.query<{
+      id: string | number;
+      crawl_id: string;
+      url: string;
+      depth: number;
+      api_key_id: number;
+      max_depth: number;
+      max_pages: number;
+      same_domain_only: boolean;
+      include_patterns: string[] | null;
+      exclude_patterns: string[] | null;
+      ignore_robots_txt: boolean;
+    }>(
+      `SELECT p.id, p.crawl_id, p.url, p.depth,
               j.api_key_id, j.max_depth, j.max_pages, j.same_domain_only,
               j.include_patterns, j.exclude_patterns, j.ignore_robots_txt
        FROM crawl_pages p
@@ -327,7 +357,7 @@ export class PgCrawlStateStore implements CrawlStateStore {
       `SELECT id, crawl_id, url, depth, status, attempt_count, last_error,
               request_id, discovered_at, completed_at
        FROM crawl_pages WHERE crawl_id = $1
-       ORDER BY discovered_at`,
+       ORDER BY discovered_at, id`,
       [crawlId],
     );
     return rows.map((p) => ({

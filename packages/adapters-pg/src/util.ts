@@ -11,8 +11,11 @@ export function toDate(value: unknown): Date {
 
 /** Coerce a bigint/count column value into a number. `pg` returns bigint
  *  (including `count(*)`) as a STRING to avoid precision loss; PGlite may
- *  return a number. Both pass through Number(). */
+ *  return a number. Both pass through Number(). `count(*)` / `bigserial` /
+ *  `integer` columns are always numeric in practice; a NaN here means the DB
+ *  shape is wrong — guard rather than propagate NaN into ids/counts. */
 export function toNumber(value: unknown): number {
   if (value === null || value === undefined) return 0;
-  return Number(value);
+  const n = Number(value);
+  return Number.isNaN(n) ? 0 : n;
 }

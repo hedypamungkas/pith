@@ -12,7 +12,10 @@ import type { Pool, PoolClient, QueryResultRow } from "pg";
  *
  * `query` mirrors `pg`'s shape (`{ rows }`); `tx` runs `fn` inside
  * `BEGIN…COMMIT` (ROLLBACK on throw). Nested `tx` calls reuse the open
- * transaction (the minimal seam has no savepoints).
+ * transaction (the minimal seam has no savepoints) — but only when nested on
+ * the `Queryable` (`q`) handed to `fn`. Nesting on the outer `Pool`-backed
+ * client instead checks out a second connection and starts a separate
+ * transaction (a deadlock footgun under row locks).
  */
 export interface Queryable {
   query<R = QueryResultRow>(
@@ -55,8 +58,10 @@ export class PgPoolQueryable implements Queryable {
     } catch (err) {
       try {
         await client.query("ROLLBACK");
-      } catch {
-        /* best-effort: the original error is the one to surface */
+      } catch (rollbackErr) {
+        // Don't shadow the original error; attach the rollback failure as its
+        // cause so a connection that died mid-transaction is still observable.
+        if (err instanceof Error) err.cause = rollbackErr;
       }
       throw err;
     } finally {

@@ -146,4 +146,87 @@ describe("PgCrawlStateStore (contract parity)", () => {
     expect(pages[0]!.requestId).toBe("r1");
     expect(pages[0]!.completedAt).toBeInstanceOf(Date);
   });
+
+  it("markPagePending resumes a paused page (paused→pending) and clears its error", async () => {
+    const s = new PgCrawlStateStore(h.client);
+    const rootId = await s.createCrawl({
+      id: "c1",
+      rootUrl: "https://x.test/",
+      apiKeyId: 1,
+      ...bounds,
+    });
+    await s.markPagePaused(rootId, "r1", "needs reauth");
+    expect(await s.getPageStatus(rootId)).toBe("paused");
+    expect(await s.finalizeCrawlIfDone("c1")).toBe(false); // paused is outstanding
+    await s.markPagePending(rootId);
+    expect(await s.getPageStatus(rootId)).toBe("pending");
+    const page = (await s.listPages("c1")).find((p) => p.id === rootId)!;
+    expect(page.status).toBe("pending");
+    expect(page.lastError).toBeNull(); // cleared on resume
+    expect(await s.finalizeCrawlIfDone("c1")).toBe(false); // now pending > 0
+  });
+
+  it("incrementPageAttempt bumps attemptCount", async () => {
+    const s = new PgCrawlStateStore(h.client);
+    const rootId = await s.createCrawl({
+      id: "c1",
+      rootUrl: "https://x.test/",
+      apiKeyId: 1,
+      ...bounds,
+    });
+    await s.incrementPageAttempt(rootId);
+    await s.incrementPageAttempt(rootId);
+    const page = (await s.listPages("c1")).find((p) => p.id === rootId)!;
+    expect(page.attemptCount).toBe(2);
+  });
+
+  it("listPausedPages round-trips array bounds (include/exclude patterns)", async () => {
+    const s = new PgCrawlStateStore(h.client);
+    const rootId = await s.createCrawl({
+      id: "c1",
+      rootUrl: "https://x.test/",
+      apiKeyId: 1,
+      authSessionId: "sess1",
+      ...bounds,
+      includePatterns: ["/docs/*", "/api/*"],
+      excludePatterns: ["/private/*"],
+    });
+    await s.markPagePaused(rootId, "r1", "needs reauth");
+    const paused = await s.listPausedPages("sess1");
+    expect(paused).toHaveLength(1);
+    expect(paused[0]!.includePatterns).toEqual(["/docs/*", "/api/*"]);
+    expect(paused[0]!.excludePatterns).toEqual(["/private/*"]);
+  });
+
+  it("returns false / null for an unknown crawl", async () => {
+    const s = new PgCrawlStateStore(h.client);
+    expect(await s.finalizeCrawlIfDone("nope")).toBe(false);
+    expect(await s.getCrawlStatus("nope")).toBeNull();
+    expect(await s.getPageStatus(999999)).toBeNull();
+  });
+
+  it("listPages orders batch-discovered pages deterministically (insertion order)", async () => {
+    const s = new PgCrawlStateStore(h.client);
+    await s.createCrawl({
+      id: "c1",
+      rootUrl: "https://x.test/",
+      apiKeyId: 1,
+      ...bounds,
+      maxPages: 10,
+    });
+    // One insertDiscoveredPages call → all three share the same discovered_at
+    // (now()); the `, id` tiebreaker keeps them in insertion order.
+    await s.insertDiscoveredPages("c1", 10, [
+      { url: "https://x.test/a", depth: 1 },
+      { url: "https://x.test/b", depth: 1 },
+      { url: "https://x.test/c", depth: 1 },
+    ]);
+    const pages = await s.listPages("c1");
+    expect(pages.map((p) => p.url)).toEqual([
+      "https://x.test/",
+      "https://x.test/a",
+      "https://x.test/b",
+      "https://x.test/c",
+    ]);
+  });
 });

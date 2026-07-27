@@ -67,7 +67,12 @@ new PgCrawlStateStore(client), ... })`.
   one connection + `runMigrations`, swapping ports one at a time.
 - `@use-pith/core` is unchanged except an additive export of `CreateCrawlInput`
   (already part of the public `CrawlStateStore.createCrawl` signature; needed
-  by any adapter author).
+  by any adapter author). The architectural gate
+  `core/tests/smoke/no-infra-on-import.test.ts` was also rewritten — from "a
+  forbidden package is not resolvable at import time" to "core source never
+  statically `import`s/`require`s forbidden infra" — because
+  `@use-pith/adapters-pg` now legitimately depends on `pg` and npm hoists it to
+  the root `node_modules` (the old resolvability check would false-positive).
 - Publishing requires registering a Trusted Publisher for
   `@use-pith/adapters-pg` on npmjs.com (one-time, as done for core).
 

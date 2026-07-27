@@ -11,7 +11,7 @@ import { toDate } from "./util.js";
 interface FreshnessRow {
   url: string;
   watched_tier: string;
-  watched_tier_max_staleness_seconds: string | number;
+  watched_tier_max_staleness_seconds: number;
   watched_tier_proactive_recrawl: boolean;
   crawled_at: unknown;
   next_due_at: unknown;
@@ -25,8 +25,9 @@ interface FreshnessRow {
  * contract names (`corePorts.ts`): the watched tier is adopted ONLY when the
  * incoming `maxStalenessSeconds` is STRICTER than the stored one, so two
  * concurrent scrapes of a new URL can't let a last-write-wins downgrade — the
- * SQL equivalent of the in-process `LEAST() + CASE` referenced by
- * {@link InMemoryFreshnessCache}. The atomic upsert needs no per-URL mutex
+ * SQL form of the monotonic-tightening upsert the port contract names
+ * (`corePorts.ts`, `FreshnessCache.record`) and {@link InMemoryFreshnessCache}
+ * mirrors in JS. The atomic upsert needs no per-URL mutex
  * (the row lock is implicit), so `record` runs without a `tx()`.
  *
  * `content` holds the full `ScrapeUrlResult` as JSONB (inline, matching the
@@ -43,7 +44,13 @@ export class PgFreshnessCache implements FreshnessCache {
       [url],
     );
     const r = rows[0];
-    return r ? this.toRecord(r) : null;
+    if (!r) return null;
+    // `content` is a JSONB round-trip with no runtime validation — a row
+    // written by a migration or an older adapter version can satisfy the
+    // ScrapeUrlResult type while being malformed. Treat a row missing the
+    // load-bearing `markdown` as a cache miss rather than serving garbage.
+    if (!r.content || typeof r.content.markdown !== "string") return null;
+    return this.toRecord(r);
   }
 
   async record(input: RecordFreshnessInput): Promise<void> {

@@ -50,13 +50,36 @@ export class PgCostRecorder implements CostRecorder {
   }
 
   async recordCostEvent(event: unknown): Promise<void> {
-    const e = event as Partial<CostEventInput> | null;
-    if (!e || typeof e.requestId !== "string") return;
-    const cents = typeof e.cents === "number" ? Math.trunc(e.cents) : 0;
+    // A null/undefined payload means "nothing to record" — the one genuinely
+    // idempotent no-op. Any other shape is validated loudly: this is a billing
+    // RPC (invoked by hosts/MCP, NOT by the OSS engine), so a malformed entry
+    // must surface rather than silently write 0 cents or be dropped — the cost
+    // overlay sums this ledger into real invoices.
+    if (event == null) return;
+    const e = event as Partial<CostEventInput>;
+    if (typeof e.requestId !== "string" || e.requestId === "") {
+      throw new Error(
+        `PgCostRecorder.recordCostEvent: expected { requestId: string, cents: number }; requestId missing or invalid in ${JSON.stringify(event)}`,
+      );
+    }
+    if (typeof e.cents !== "number" || !Number.isFinite(e.cents)) {
+      // A string/undefined/null/NaN/Infinity cents previously coerced to 0 and
+      // wrote a silent 0-cent row — billing corruption. Reject it.
+      throw new Error(
+        `PgCostRecorder.recordCostEvent: invalid cents for requestId=${e.requestId}: ${String(e.cents)}`,
+      );
+    }
+    if (!Number.isInteger(e.cents)) {
+      // The column is `integer`; silently flooring a float would lose money.
+      // Force the caller to round upstream so the loss is explicit.
+      throw new Error(
+        `PgCostRecorder.recordCostEvent: fractional cents not allowed for requestId=${e.requestId} (got ${e.cents}); round upstream`,
+      );
+    }
     await this.client.query(
       `INSERT INTO cost_events (request_id, tier, success, cents)
        VALUES ($1, $2, $3, $4)`,
-      [e.requestId, e.tier ?? "static", e.success ?? true, cents],
+      [e.requestId, e.tier ?? "static", e.success ?? true, e.cents],
     );
   }
 

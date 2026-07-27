@@ -8,8 +8,10 @@ interface SnapshotLike {
 /**
  * Postgres-backed {@link SnapshotStore} over the `request_snapshots` table.
  *
- * Faithful to {@link InMemorySnapshotStore}: `capture` only persists when the
- * object carries a `requestId` (it is keyed by it). The full snapshot —
+ * Faithful to {@link InMemorySnapshotStore} for string `requestId`s: `capture`
+ * only persists when the object carries a string `requestId` (the column is
+ * `text`; the in-memory default is looser — it accepts any `requestId` via an
+ * `in` check, which this adapter rejects). The full snapshot —
  * including the bulky body — is stored inline as JSONB (matching the in-memory
  * default, which keeps everything in memory). A later `adapters-minio`
  * offloads the body to an object store and keeps only a metadata row +

@@ -29,6 +29,14 @@ describe("PgSnapshotStore", () => {
     expect(await s.load("s1")).toBeUndefined();
   });
 
+  it("capture upserts — a second capture for the same requestId overwrites", async () => {
+    const s = new PgSnapshotStore(h.client);
+    await s.capture({ requestId: "s1", v: 1 });
+    await s.capture({ requestId: "s1", v: 2 });
+    const loaded = (await s.load("s1")) as { requestId: string; v: number };
+    expect(loaded.v).toBe(2);
+  });
+
   it("load returns undefined for an unknown requestId", async () => {
     const s = new PgSnapshotStore(h.client);
     expect(await s.load("nope")).toBeUndefined();
