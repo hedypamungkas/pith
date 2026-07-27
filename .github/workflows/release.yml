@@ -42,6 +42,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Trusted Publishing's keyless *publish auth* needs npm >= 11.5.1; Node 24
+      # bundles ~11.3, so upgrade explicitly. (Provenance signing is older and
+      # works without this — which is why a too-old npm signs provenance but
+      # still 401/404s the publish.)
+      - name: Upgrade npm (>= 11.5.1 for Trusted Publishing)
+        run: npm install -g npm@latest
+
       # Keyless publish — no NPM_TOKEN / NODE_AUTH_TOKEN. Trusted Publishing +
       # provenance are implicit via id-token: write + the package's trusted
       # publisher config. publishConfig.access=public handles public access.
