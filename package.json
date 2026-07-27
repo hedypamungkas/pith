@@ -28,7 +28,7 @@
     "@types/node": "^20.14.15",
     "@types/turndown": "^5.0.4",
     "eslint": "^9.10.0",
-    "eslint-config-prettier": "^9.1.0",
+    "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-import": "^2.31.0",
     "fastify": "^4.28.1",
     "nock": "^13.5.4",
