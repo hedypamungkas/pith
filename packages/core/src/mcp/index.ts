@@ -13,8 +13,25 @@ import {
   handleGetCrawlStatus,
 } from "../handlers/index.js";
 
+export interface CostOverlay {
+  /** Sum of billed cost (cents) for one request, looked up by requestId.
+   * Omit (or the requestId is absent) => `cost_cents` is 0 — e.g. crawl and
+   * get_crawl_status do no billable work in the call itself. */
+  getCostCentsForRequest?: (requestId: string) => Promise<number> | number;
+  /** The caller's current-month spend (cents). Omit when spend tracking is out
+   * of scope; `budget_remaining_cents` then reflects only the cap (or null). */
+  getSpendCents?: () => Promise<number> | number;
+  /** Monthly spend cap (cents). `null`/`undefined` => uncapped =>
+   * `budget_remaining_cents: null`. */
+  spendCapCents?: number | null;
+}
+
 export interface McpServerOptions {
   engine: Engine;
+  /** Opt-in cost enrichment. When set, every successful tool result is
+   * augmented with `cost_cents` + `budget_remaining_cents` (mirroring the
+   * source's `buildToolResult`). Absent => cost-free responses (the default). */
+  costOverlay?: CostOverlay;
 }
 
 type ToolDef = {
@@ -42,12 +59,11 @@ function err(message: string): ToolResult {
 const getCrawlStatusSchema = z.object({ crawlId: z.string() });
 
 /**
- * Dispatch a single MCP tool call against the engine. Exported so it is usable
- * directly (and testable) without standing up the MCP transport — buildMcpServer
- * wires this into the SDK's CallTool handler. No cost overlay: returns
- * `{ content, structuredContent }` without `cost_cents` / `budget_remaining_cents`.
+ * Dispatch a single MCP tool call against the engine (no cost overlay). The
+ * exported `callTool` wraps this and, when a `CostOverlay` is configured,
+ * enriches successful results with `cost_cents` / `budget_remaining_cents`.
  */
-export async function callTool(
+async function dispatchTool(
   name: string,
   rawArgs: unknown,
   engine: Engine,
@@ -79,6 +95,63 @@ export async function callTool(
 }
 
 /**
+ * Dispatch a single MCP tool call against the engine, optionally enriching the
+ * result with cost fields. Exported so it is usable directly (and testable)
+ * without standing up the MCP transport — `buildMcpServer` wires this into the
+ * SDK's CallTool handler. Without a `costOverlay`, returns
+ * `{ content, structuredContent }` with no `cost_cents` / `budget_remaining_cents`.
+ */
+export async function callTool(
+  name: string,
+  rawArgs: unknown,
+  engine: Engine,
+  costOverlay?: CostOverlay,
+): Promise<ToolResult> {
+  const result = await dispatchTool(name, rawArgs, engine);
+  if (costOverlay && !result.isError && result.structuredContent !== undefined) {
+    return applyCostOverlay(result, costOverlay);
+  }
+  return result;
+}
+
+/**
+ * Enrich a successful tool result with `cost_cents` + `budget_remaining_cents`,
+ * verbatim logic from the source's `buildToolResult` (`src/mcp/mcpServer.ts:91-101`):
+ * `cost_cents` is the per-request cost (0 when the tool has no requestId —
+ * crawl/get_crawl_status), `budget_remaining_cents` is `max(0, cap − spent)` or
+ * `null` for an uncapped caller. The two lookups are injected — the OSS core
+ * owns the shape + the `Promise.all`; the consumer owns the (prod-coupled)
+ * cost-ledger / monthly-spend queries.
+ */
+async function applyCostOverlay(
+  result: ToolResult,
+  overlay: CostOverlay,
+): Promise<ToolResult> {
+  const payload = (result.structuredContent ?? {}) as Record<string, unknown>;
+  const requestId =
+    typeof payload.requestId === "string" ? payload.requestId : undefined;
+  const [costCents, spentCents] = await Promise.all([
+    requestId && overlay.getCostCentsForRequest
+      ? overlay.getCostCentsForRequest(requestId)
+      : 0,
+    overlay.getSpendCents ? overlay.getSpendCents() : 0,
+  ]);
+  const budgetRemainingCents =
+    overlay.spendCapCents == null
+      ? null
+      : Math.max(0, overlay.spendCapCents - (spentCents ?? 0));
+  const withCost = {
+    ...payload,
+    cost_cents: costCents,
+    budget_remaining_cents: budgetRemainingCents,
+  };
+  return {
+    content: [{ type: "text", text: JSON.stringify(withCost) }],
+    structuredContent: withCost,
+  };
+}
+
+/**
  * `@pith/core/mcp` — the optional MCP face over the same handlers the HTTP face
  * uses (one request-handling core, two transports). Uses the SDK's low-level
  * `Server` + `setRequestHandler` API deliberately (registerTool's zod-compat
@@ -87,7 +160,7 @@ export async function callTool(
  * `@pith/core` entry never requires them.
  */
 export async function buildMcpServer(options: McpServerOptions): Promise<Server> {
-  const { engine } = options;
+  const { engine, costOverlay } = options;
   const { Server } = await import("@modelcontextprotocol/sdk/server/index.js");
   const {
     ListToolsRequestSchema,
@@ -127,7 +200,7 @@ export async function buildMcpServer(options: McpServerOptions): Promise<Server>
   const callHandler = async (request: {
     params: { name: string; arguments?: unknown };
   }): Promise<ToolResult> =>
-    callTool(request.params.name, request.params.arguments ?? {}, engine);
+    callTool(request.params.name, request.params.arguments ?? {}, engine, costOverlay);
   register(ListToolsRequestSchema, listHandler);
   register(CallToolRequestSchema, callHandler);
   return server;

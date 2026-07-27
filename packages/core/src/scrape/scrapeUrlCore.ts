@@ -60,6 +60,11 @@ export interface ScrapeUrlOptions {
   storageState?: StorageState;
   /** Per-request robots.txt compliance opt-out. */
   skipRobotsCheck?: boolean;
+  /** Opt into stale-while-revalidate caching. When set, the engine routes this
+   * scrape through `composeFreshness` against the configured freshness cache +
+   * tier catalog; `scrapeUrlCore` itself ignores it (caching is an engine-level
+   * concern). `undefined` → the zero-cache direct path. */
+  freshnessTier?: string;
 }
 
 export interface ScrapeUrlDeps {

@@ -1,4 +1,11 @@
-import type { CorePorts, CrawlStateStore } from "./corePorts.js";
+import type {
+  CorePorts,
+  CrawlStateStore,
+  FreshnessCache,
+  FreshnessRecord,
+  RecordFreshnessInput,
+  DueUrl,
+} from "./corePorts.js";
 import type { ScrapeAttempt } from "../pricing.js";
 import type {
   CreateCrawlInput,
@@ -337,18 +344,64 @@ class AllowAllRobotsResolver {
   }
 }
 
-class InMemoryFreshnessCache {
-  private readonly cache = new Map<string, unknown>();
-  tryGet(url: string): unknown {
+/** In-memory freshness cache with the source's monotonically-tightening upsert.
+ *  `record` adopts the incoming tier only when it is STRICTER (smaller
+ *  maxStalenessSeconds) than the stored row, so two concurrent scrapes of a new
+ *  URL can't let a last-write-wins downgrade — the in-process equivalent of the
+ *  source's `LEAST()` + `CASE` inside `ON CONFLICT DO UPDATE`. Serialized per
+ *  URL via a promise-mutex (the `FOR UPDATE` row lock). */
+export class InMemoryFreshnessCache implements FreshnessCache {
+  private readonly cache = new Map<string, FreshnessRecord>();
+  private readonly locks = new Map<string, Promise<void>>();
+
+  async tryGet(url: string): Promise<FreshnessRecord | null> {
     return this.cache.get(url) ?? null;
   }
-  record(input: unknown): void {
-    if (input && typeof input === "object" && "url" in input) {
-      this.cache.set((input as { url: string }).url, input);
+
+  async record(input: RecordFreshnessInput): Promise<void> {
+    // Serialize concurrent records for the same URL (the FOR UPDATE row lock).
+    const prev = this.locks.get(input.url) ?? Promise.resolve();
+    let release!: () => void;
+    const lock = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    this.locks.set(input.url, prev.then(() => lock));
+    await prev;
+    try {
+      const existing = this.cache.get(input.url);
+      const storedMax = existing?.watchedTierMaxStalenessSeconds;
+      // Adopt the incoming tier iff it is stricter than (or there is no) stored.
+      const adopt =
+        storedMax === undefined || input.requestedTierMaxStalenessSeconds < storedMax;
+      const watchedMax = adopt ? input.requestedTierMaxStalenessSeconds : storedMax!;
+      this.cache.set(input.url, {
+        url: input.url,
+        watchedTier: adopt ? input.requestedTier : existing!.watchedTier,
+        watchedTierMaxStalenessSeconds: watchedMax,
+        watchedTierProactiveRecrawl: adopt
+          ? input.requestedTierProactiveRecrawl
+          : existing!.watchedTierProactiveRecrawl,
+        crawledAt: input.crawledAt,
+        nextDueAt: new Date(input.crawledAt.getTime() + watchedMax * 1000),
+        content: input.content,
+      });
+    } finally {
+      release();
     }
   }
-  listDue(): unknown[] {
-    return [];
+
+  async listDue(now: Date): Promise<DueUrl[]> {
+    const out: DueUrl[] = [];
+    for (const r of this.cache.values()) {
+      if (r.watchedTierProactiveRecrawl && r.nextDueAt.getTime() <= now.getTime()) {
+        out.push({ url: r.url, watchedTier: r.watchedTier });
+      }
+    }
+    return out;
+  }
+
+  async delete(url: string): Promise<boolean> {
+    return this.cache.delete(url);
   }
 }
 

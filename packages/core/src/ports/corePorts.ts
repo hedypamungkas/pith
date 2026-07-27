@@ -13,6 +13,7 @@
  * the names and responsibilities below are stable.
  */
 import type { ScrapeAttempt } from "../pricing.js";
+import type { ScrapeUrlResult } from "../scrape/scrapeUrlCore.js";
 import type {
   CreateCrawlInput,
   CrawlStatus,
@@ -75,10 +76,54 @@ export interface RobotsResolver {
   isAllowed(url: string): Promise<boolean> | boolean;
 }
 
+/** A cached scrape, keyed by URL. `content` holds the full `ScrapeUrlResult` so
+ * a cache hit replays the exact shape a fresh fetch returns; a prod adapter may
+ * offload the bulky `html` to a separate snapshot store and rehydrate it here. */
+export interface FreshnessRecord {
+  url: string;
+  /** The tier currently watching this URL — tightened monotonically by `record`,
+   * never loosened. */
+  watchedTier: string;
+  watchedTierMaxStalenessSeconds: number;
+  watchedTierProactiveRecrawl: boolean;
+  crawledAt: Date;
+  /** `crawledAt + watchedTierMaxStalenessSeconds` — the proactive-recrawl due
+   * time. Doubles as the freshness deadline (`withinSla` compares age against
+   * `watchedTierMaxStalenessSeconds`). */
+  nextDueAt: Date;
+  content: ScrapeUrlResult;
+}
+
+/** Input to `FreshnessCache.record`. The cache decides — from
+ * `requestedTierMaxStalenessSeconds` vs the stored row — whether to adopt the
+ * incoming tier or keep the existing (tighter) one. */
+export interface RecordFreshnessInput {
+  url: string;
+  requestedTier: string;
+  requestedTierMaxStalenessSeconds: number;
+  requestedTierProactiveRecrawl: boolean;
+  crawledAt: Date;
+  content: ScrapeUrlResult;
+}
+
+export interface DueUrl {
+  url: string;
+  watchedTier: string;
+}
+
 export interface FreshnessCache {
-  tryGet(url: string): Promise<unknown> | unknown;
-  record(input: unknown): Promise<void> | void;
-  listDue(): Promise<unknown[]> | unknown[];
+  tryGet(url: string): Promise<FreshnessRecord | null>;
+  /** Upsert a fresh crawl result. Implementations MUST monotonically TIGHTEN the
+   * watched tier (adopt the incoming tier only when it is stricter than the
+   * stored one) so two concurrent scrapes of a new URL can't let a
+   * last-write-wins downgrade — the in-process equivalent of the source's
+   * `LEAST()` + `CASE` tightening upsert. */
+  record(input: RecordFreshnessInput): Promise<void>;
+  /** URLs past their `nextDueAt` whose tier is `proactiveRecrawl`, as of `now`. */
+  listDue(now: Date): Promise<DueUrl[]>;
+  /** Erase a URL's cached content (DSAR / cross-tenant erase). Returns whether a
+   * row existed. */
+  delete(url: string): Promise<boolean>;
 }
 
 export type Clock = () => Date;

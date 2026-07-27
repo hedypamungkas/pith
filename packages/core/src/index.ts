@@ -5,8 +5,8 @@
  * infrastructure — enforced by the `smoke` project and the
  * `import/no-restricted-paths` lint rule. Playwright (the headless tier) is
  * imported lazily by `launchBrowser`, so a static-only consumer pays nothing
- * for it. Engine method bodies (scrape/crawl/extract/search) land in step 3;
- * until then they throw `NotImplementedError`.
+ * for it. The optional MCP/HTTP faces and the extraction/search backends are
+ * dynamic-imported so an SDK-only consumer installs nothing extra.
  */
 
 // --- engine spine ---
@@ -24,8 +24,12 @@ export type {
   JobQueue,
   RobotsResolver,
   FreshnessCache,
+  FreshnessRecord,
+  RecordFreshnessInput,
+  DueUrl,
   Clock,
 } from "./ports/corePorts.js";
+export { InMemoryFreshnessCache } from "./ports/nullPorts.js";
 
 // --- types + pricing + budget ---
 export type { StorageState } from "./types.js";
@@ -57,6 +61,21 @@ export {
   type ScrapeUrlResult,
   type ScrapeUrlOptions,
 } from "./scrape/scrapeUrlCore.js";
+
+// --- freshness (opt-in stale-while-revalidate cache) ---
+export {
+  DEFAULT_TIER_CATALOG,
+  resolveTier,
+  UnknownFreshnessTierError,
+  type FreshnessTierDef,
+  type FreshnessTierCatalog,
+} from "./freshness/freshnessTiers.js";
+export { computeFreshness, type FreshnessInfo } from "./freshness/computeFreshness.js";
+export {
+  composeFreshness,
+  type FreshnessScrapeResult,
+  type ComposeFreshnessDeps,
+} from "./freshness/composeFreshness.js";
 
 // --- crawl ---
 export { pureCrawler, type CrawlHandle, type CrawlKickoffOptions } from "./crawl/pureCrawler.js";

@@ -20,12 +20,17 @@ import {
   type CrawlKickoffOptions,
 } from "./crawl/pureCrawler.js";
 import type { StorageState } from "./types.js";
+import { composeFreshness } from "./freshness/composeFreshness.js";
+import { DEFAULT_TIER_CATALOG, type FreshnessTierCatalog } from "./freshness/freshnessTiers.js";
 
 export interface EngineOptions extends Partial<CorePorts> {
   /** Required for engine.extract(); extract throws NotConfiguredError without it. */
   extractionBackend?: ExtractionBackend;
   /** Required for engine.search(); search throws NotConfiguredError without it. */
   searchBackend?: SearchBackend;
+  /** Freshness tier catalog used when a scrape opts in via `freshnessTier`.
+   * Defaults to `DEFAULT_TIER_CATALOG` (news/standard). */
+  freshnessTierCatalog?: FreshnessTierCatalog;
 }
 
 export interface ExtractOptions {
@@ -77,8 +82,13 @@ export function createEngine(options: EngineOptions = {}): Engine {
   const ports: CorePorts = { ...createNullPorts(), ...options };
   const extractionBackend = options.extractionBackend;
   const searchBackend = options.searchBackend;
+  const tierCatalog = options.freshnessTierCatalog ?? DEFAULT_TIER_CATALOG;
 
-  const scrape = async (
+  // Fetch + best-effort cost audit (NoopCostRecorder by default — never throws).
+  // Shared by the direct scrape path and the freshness wrapper, so cost is
+  // recorded exactly once per fetch (a freshness cache HIT skips the fetch and
+  // thus records nothing — parity with the source's zero-cost cache tier).
+  const scrapeAndRecord = async (
     url: string,
     opts?: ScrapeUrlOptions,
   ): Promise<ScrapeUrlResult> => {
@@ -86,13 +96,27 @@ export function createEngine(options: EngineOptions = {}): Engine {
       centsForTier,
       robotsResolver: ports.robotsResolver,
     });
-    // Best-effort cost audit (NoopCostRecorder by default — never throws).
     try {
       await ports.costRecorder.recordAttempts(result.attempts);
     } catch {
       /* cost recording must never break a successful scrape */
     }
     return result;
+  };
+
+  // Freshness (stale-while-revalidate) is OPT-IN: only when the caller sets
+  // `opts.freshnessTier`. Unset → the zero-cache direct path (default).
+  const scrapeWithFreshness = composeFreshness(scrapeAndRecord, {
+    cache: ports.freshnessCache,
+    tierCatalog,
+    clock: ports.clock,
+  });
+  const scrape = async (
+    url: string,
+    opts?: ScrapeUrlOptions,
+  ): Promise<ScrapeUrlResult> => {
+    if (opts?.freshnessTier) return scrapeWithFreshness(url, opts);
+    return scrapeAndRecord(url, opts);
   };
 
   const extract = async (
