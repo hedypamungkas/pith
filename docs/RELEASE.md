@@ -8,7 +8,10 @@ These are the **maintainer go-live actions** — the things that can't be done f
 
    Scope-name ladder (if a future scope is unavailable, update `packages/core/package.json` `name` + the README install snippets + the badge URLs): `@use-pith/core` → `@pith-core/core` → unscoped `pith-core`.
 
-2. **GitHub org + repo.** Create the `pith-core` org (the `pith` handle is a personal account — unavailable), push this repo as `pith-core/pith`, and add the `NPM_TOKEN` secret (a classic automation token with publish scope) at **Settings → Secrets and variables → Actions**. Provenance also needs the build to originate from GitHub (the `release.yml` workflow sets `id-token: write`).
+2. **GitHub repo.** Publish from the **`hedypamungkas/pith`** repo (personal). A dedicated `pith-core` org can be created later and the repo transferred — GitHub auto-redirects the old URL; just update `repository`/`homepage`/`bugs` in `packages/core/package.json` + the README badges + the SECURITY/COC links.
+   - Create + push in one shot: `gh repo create hedypamungkas/pith --public --source=. --push`.
+   - Add the `NPM_TOKEN` secret: `gh secret set NPM_TOKEN` (prompts securely) **or** repo Settings → Secrets and variables → Actions → New repository secret → name `NPM_TOKEN`.
+   - Provenance needs the build to originate from GitHub Actions (`release.yml` sets `id-token: write`).
 
 3. **Trademark check.** Run a live/dead search at [tmsearch.uspto.gov](https://tmsearch.uspto.gov/) for the mark **"PITH"** in **IC 009** (software) and **IC 042** (SaaS/tech services). Web search surfaced no notable tech brand named "Pith"; confirm there's no LIVE registration before the public announcement. (This is legal due-diligence — not something the repo can do for you.)
 

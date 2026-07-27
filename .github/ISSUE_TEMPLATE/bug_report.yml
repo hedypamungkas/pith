@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Thanks for taking the time to file a bug report!
-        Before opening an issue, please skim [`docs/ARCHITECTURE.md`](https://github.com/pith-core/pith/blob/main/docs/ARCHITECTURE.md) and the OpenAPI spec served by `@use-pith/core/http` — many questions about behavior, the SDK/HTTP/MCP surfaces, and the zero-infra defaults are answered there.
+        Before opening an issue, please skim [`docs/ARCHITECTURE.md`](https://github.com/hedypamungkas/pith/blob/main/docs/ARCHITECTURE.md) and the OpenAPI spec served by `@use-pith/core/http` — many questions about behavior, the SDK/HTTP/MCP surfaces, and the zero-infra defaults are answered there.
   - type: textarea
     id: summary
     attributes:

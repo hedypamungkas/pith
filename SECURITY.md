@@ -6,7 +6,7 @@ _This policy is distinct from any policy of the source project Pith was extracte
 
 Please report security vulnerabilities **privately**. Do not open a public GitHub issue.
 
-**Preferred channel:** GitHub's **"Report a vulnerability"** feature on the [pith-core/pith](https://github.com/pith-core/pith/security/advisories/new) repository (Security → Advisories → New draft advisory). This routes directly to the maintainers and supports coordinated disclosure. (A dedicated `security@` email will be added once a domain is set up; until then, GitHub Advisories is the canonical channel.)
+**Preferred channel:** GitHub's **"Report a vulnerability"** feature on the [pith-core/pith](https://github.com/hedypamungkas/pith/security/advisories/new) repository (Security → Advisories → New draft advisory). This routes directly to the maintainers and supports coordinated disclosure. (A dedicated `security@` email will be added once a domain is set up; until then, GitHub Advisories is the canonical channel.)
 
 Please include:
 

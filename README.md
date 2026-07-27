@@ -2,7 +2,7 @@
 
 > The essential web, for agents. URL → clean markdown, crawl, structured extract, and search — with verifiable citations and deterministic request replay.
 
-[![CI](https://github.com/pith-core/pith/actions/workflows/ci.yml/badge.svg)](https://github.com/pith-core/pith/actions/workflows/ci.yml)
+[![CI](https://github.com/hedypamungkas/pith/actions/workflows/ci.yml/badge.svg)](https://github.com/hedypamungkas/pith/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/@use-pith/core.svg)](https://www.npmjs.com/package/@use-pith/core)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 [![node](https://img.shields.io/node/v/@use-pith/core.svg)](https://www.npmjs.com/package/@use-pith/core)

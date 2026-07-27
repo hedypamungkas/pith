@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for the idea! Please search existing [issues](https://github.com/pith-core/pith/issues) and [Discussions](https://github.com/pith-core/pith/discussions) first to avoid duplicates.
+        Thanks for the idea! Please search existing [issues](https://github.com/hedypamungkas/pith/issues) and [Discussions](https://github.com/hedypamungkas/pith/discussions) first to avoid duplicates.
   - type: textarea
     id: problem
     attributes:

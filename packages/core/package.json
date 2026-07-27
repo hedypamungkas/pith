@@ -5,13 +5,13 @@
   "description": "Pith — the essential web, for agents. Embeddable engine: URL→clean markdown, crawl, structured extract, search, MCP (SDK + HTTP + MCP faces).",
   "license": "Apache-2.0",
   "author": "The Pith Authors",
-  "homepage": "https://github.com/pith-core/pith#readme",
+  "homepage": "https://github.com/hedypamungkas/pith#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pith-core/pith.git",
+    "url": "git+https://github.com/hedypamungkas/pith.git",
     "directory": "packages/core"
   },
-  "bugs": { "url": "https://github.com/pith-core/pith/issues" },
+  "bugs": { "url": "https://github.com/hedypamungkas/pith/issues" },
   "keywords": [
     "web",
     "scraping",

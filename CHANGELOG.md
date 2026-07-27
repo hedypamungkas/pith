@@ -56,5 +56,5 @@ by default.
   requirement, ESLint + Prettier + tsup build, and the CI/gitleaks/release
   workflows under `.github/`.
 
-[Unreleased]: https://github.com/pith-core/pith/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/pith-core/pith/releases/tag/v0.1.0
+[Unreleased]: https://github.com/hedypamungkas/pith/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/hedypamungkas/pith/releases/tag/v0.1.0

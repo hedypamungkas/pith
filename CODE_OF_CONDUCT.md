@@ -64,7 +64,7 @@ reported to the community leaders responsible for enforcement.
 Pith does not maintain a dedicated email inbox for Code of Conduct reports. To
 report an incident **privately to the maintainers**, open a **draft GitHub
 Security Advisory** on the repository: go to the repo's
-[**Security** tab → **Advisories** → **New draft advisory**](https://github.com/pith-core/pith/security/advisories/new)
+[**Security** tab → **Advisories** → **New draft advisory**](https://github.com/hedypamungkas/pith/security/advisories/new)
 (or use **Security → Report a vulnerability**). Draft advisories are private and
 visible only to repository maintainers until published. Use the advisory text
 field to describe the incident; you do not need to report a software

@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Discussions
-    url: https://github.com/pith-core/pith/discussions
+    url: https://github.com/hedypamungkas/pith/discussions
     about: Ask questions and discuss usage patterns here. Issues are for bugs and concrete feature requests only.
   - name: Security policy
-    url: https://github.com/pith-core/pith/security/policy
+    url: https://github.com/hedypamungkas/pith/security/policy
     about: Found a security issue? Report it privately via Security → Advisories, not as a public issue.
