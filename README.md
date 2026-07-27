@@ -6,7 +6,6 @@
 [![npm version](https://img.shields.io/npm/v/@use-pith/core.svg)](https://www.npmjs.com/package/@use-pith/core)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 [![node](https://img.shields.io/node/v/@use-pith/core.svg)](https://www.npmjs.com/package/@use-pith/core)
-[![downloads](https://img.shields.io/npm/dm/@use-pith/core.svg)](https://www.npmjs.com/package/@use-pith/core)
 
 Pith is an open-source web-for-LLMs engine: point it at a URL and get clean, LLM-ready markdown — plus multi-page crawl, provider-agnostic structured extraction (with per-field confidence and citations you can verify), web search, and an MCP server. It runs with **zero infrastructure and zero API keys by default**: in-memory stores, an in-process queue, no database, no object store, no job runner. Postgres / MinIO / BullMQ / LLM providers are optional adapters behind explicit [ports](./docs/ARCHITECTURE.md).
 
