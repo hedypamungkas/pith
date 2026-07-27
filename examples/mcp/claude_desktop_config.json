@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/specification/main/schemas/2025-06-18/server-config.schema.json",
+  "mcpServers": {
+    "pith": {
+      "command": "npx",
+      "args": ["tsx", "./examples/mcp/server.ts"]
+    }
+  }
+}

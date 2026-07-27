@@ -1,0 +1,32 @@
+name: gitleaks
+
+# Secret scanning on every push (all branches) and on pull requests.
+# The repository has a fresh history, so this workflow guards secrets from
+# here forward rather than auditing pre-existing commits.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Detect secrets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history so gitleaks can diff against prior commits on push.
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Config-free: gitleaks' built-in ruleset is used (no `.gitleaks.toml`
+      # required). To enable the action on a public repo you may need to set a
+      # `GITLEAKS_ENABLE` repository variable; the rules themselves need no
+      # local config file.
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

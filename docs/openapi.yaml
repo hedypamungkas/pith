@@ -1,0 +1,560 @@
+openapi: 3.0.3
+info:
+  title: Pith
+  description: >
+    Pith is an embeddable web-for-LLMs engine: it turns URLs into clean
+    Markdown, crawls sites, runs structured extraction against a caller-
+    supplied JSON Schema, and searches the web — all tuned for LLM/agent
+    consumption. This is the optional HTTP face exposed by @pith/core; the
+    engine itself is also usable directly as a library. The HTTP face
+    ships with no built-in authentication — gate it with your own Fastify
+    middleware in front of the returned app if you need access control.
+  version: "0.1.0"
+servers:
+  - url: http://localhost:3000
+    description: Local @pith/core/http server (createServer({ engine }).listen(...))
+
+# No auth by default — the HTTP face is open. Gate it with your own
+# Fastify middleware in front of the returned app if you need access control.
+security: []
+
+tags:
+  - name: Scrape
+  - name: Crawl
+  - name: Search
+  - name: Extract
+  - name: Health
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness check
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /v1/scrape:
+    post:
+      tags: [Scrape]
+      summary: Fetch a single URL and return clean Markdown
+      description: >
+        Escalates from a static HTTP fetch to a headless browser render if
+        the static result looks like a JS-rendered SPA shell. Freshness-aware:
+        a repeat request within the tier's staleness window is served from
+        cache instead of re-fetching. Checked against the target's
+        robots.txt (see `ignoreRobotsTxt` to opt out — every use is logged).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScrapeRequest"
+            examples:
+              default:
+                value:
+                  url: "https://example.com"
+      responses:
+        "200":
+          description: Scrape succeeded (freshly fetched or served from cache)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScrapeResponse"
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "502":
+          description: >
+            Upstream fetch failed on every available tier, or the URL is
+            disallowed by the target's robots.txt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestError"
+
+  /v1/crawl:
+    post:
+      tags: [Crawl]
+      summary: Start an asynchronous multi-page crawl
+      description: >
+        Returns immediately with a crawlId — poll GET /v1/crawl/{id} for
+        status.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CrawlRequest"
+            examples:
+              default:
+                value:
+                  url: "https://example.com"
+                  maxDepth: 1
+                  maxPages: 10
+      responses:
+        "202":
+          description: Crawl accepted and queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  crawlId:
+                    type: string
+                    format: uuid
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/crawl/{id}:
+    get:
+      tags: [Crawl]
+      summary: Get aggregate status/counts for a crawl
+      parameters:
+        - $ref: "#/components/parameters/CrawlId"
+      responses:
+        "200":
+          description: Crawl status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CrawlStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/search:
+    post:
+      tags: [Search]
+      summary: Search the web via the configured search backend
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchRequest"
+            examples:
+              default:
+                value:
+                  query: "web scraping API for LLMs"
+                  limit: 10
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "502":
+          description: Search backend call failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestError"
+        "503":
+          description: Search backend not configured
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+
+  /v1/extract:
+    post:
+      tags: [Extract]
+      summary: Fetch a URL and extract structured data per a caller-provided JSON Schema
+      description: >
+        Low-confidence fields, or fields whose citation isn't independently
+        verified/strongly supporting, are flagged in flaggedFields
+        rather than silently guessed. Checked against the target's
+        robots.txt like /v1/scrape.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExtractRequest"
+            examples:
+              default:
+                value:
+                  url: "https://example.com"
+                  schema:
+                    type: object
+                    properties:
+                      summary:
+                        type: string
+                    required: [summary]
+      responses:
+        "200":
+          description: Extraction succeeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExtractResponse"
+        "400":
+          description: Invalid request body, or a structurally invalid JSON Schema
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "502":
+          description: Fetch or model call failed, or disallowed by robots.txt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestError"
+        "503":
+          description: Extraction backend not configured
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+
+components:
+  parameters:
+    CrawlId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    Unauthorized:
+      description: >
+        Missing or invalid credentials. The HTTP face itself returns no 401;
+        this documents the response a caller-supplied auth middleware placed
+        in front of the returned Fastify app may produce.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "Missing or invalid API key"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+
+  schemas:
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: object
+          description: zod's flattened error shape (fieldErrors/formErrors)
+
+    RequestError:
+      type: object
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        error:
+          type: string
+
+    FreshnessTier:
+      type: string
+      description: >
+        A name from the freshness-tier catalog — not a fixed enum, since
+        tiers are arbitrary, caller-definable labels. "news" and "standard"
+        are common defaults, not the only valid values.
+      example: standard
+
+    Freshness:
+      type: object
+      properties:
+        crawledAt:
+          type: string
+          format: date-time
+        slaTier:
+          $ref: "#/components/schemas/FreshnessTier"
+        maxStalenessSeconds:
+          type: integer
+        withinSla:
+          type: boolean
+
+    BudgetDegradation:
+      type: object
+      nullable: true
+      description: >
+        Present only when the caller supplied budget_cents. Explains
+        whether a cheaper tier was served instead of the full-quality
+        result to stay within the ceiling.
+      properties:
+        applied:
+          type: boolean
+        reason:
+          type: string
+        budgetCents:
+          type: integer
+        tierServed:
+          type: string
+        skippedTier:
+          type: string
+          nullable: true
+        skippedTierCostCents:
+          type: integer
+          nullable: true
+
+    ScrapeRequest:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: uri
+        freshnessTier:
+          allOf:
+            - $ref: "#/components/schemas/FreshnessTier"
+          default: standard
+        budget_cents:
+          type: integer
+          minimum: 0
+          description: >
+            Optional cap on this call's fetch-tier cost — a tight ceiling
+            serves a cheaper tier's result (with budgetDegradation
+            explaining the tradeoff) instead of erroring.
+        ignoreRobotsTxt:
+          type: boolean
+          default: false
+          description: Opt out of robots.txt compliance for this call. Every use is logged for audit.
+
+    ScrapeResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+        title:
+          type: string
+          nullable: true
+        markdown:
+          type: string
+        text:
+          type: string
+        statusCode:
+          type: integer
+        fetchedAt:
+          type: string
+          format: date-time
+        freshness:
+          $ref: "#/components/schemas/Freshness"
+        budgetDegradation:
+          $ref: "#/components/schemas/BudgetDegradation"
+
+    CrawlRequest:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: uri
+        maxDepth:
+          type: integer
+          minimum: 0
+          maximum: 10
+          default: 2
+        maxPages:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 50
+        sameDomainOnly:
+          type: boolean
+          default: true
+        includePatterns:
+          type: array
+          items:
+            type: string
+        excludePatterns:
+          type: array
+          items:
+            type: string
+        ignoreRobotsTxt:
+          type: boolean
+          default: false
+          description: Applies to every page this crawl discovers, not just the root.
+
+    CrawlStatus:
+      type: object
+      properties:
+        crawlId:
+          type: string
+          format: uuid
+        rootUrl:
+          type: string
+          format: uri
+        status:
+          type: string
+          enum: [queued, running, partial, complete, failed, paused]
+        pagesTotal:
+          type: integer
+        pagesSucceeded:
+          type: integer
+        pagesFailed:
+          type: integer
+        pagesPending:
+          type: integer
+        pagesPaused:
+          type: integer
+          description: >
+            Pages currently paused — counted as outstanding for finalization
+            purposes, reported separately since it isn't "currently being
+            worked on."
+
+    SearchRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          minLength: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 10
+        freshness:
+          type: string
+          enum: [day, week, month, year]
+
+    SearchResultItem:
+      type: object
+      properties:
+        title:
+          type: string
+        url:
+          type: string
+          format: uri
+        snippet:
+          type: string
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    SearchResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        query:
+          type: string
+        source:
+          type: string
+          example: web
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchResultItem"
+
+    ExtractRequest:
+      type: object
+      required: [url, schema]
+      properties:
+        url:
+          type: string
+          format: uri
+        schema:
+          type: object
+          description: Any valid JSON Schema describing the fields to extract.
+        budget_cents:
+          type: integer
+          minimum: 0
+          description: >
+            Optional cap on this call's fetch-tier cost. Extraction's own
+            LLM-call cost is fixed and never degraded.
+        ignoreRobotsTxt:
+          type: boolean
+          default: false
+
+    ExtractResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+        data:
+          type: object
+          description: Matches the caller-provided schema.
+        confidence:
+          type: object
+          additionalProperties:
+            type: number
+        citations:
+          type: object
+          description: >
+            Top-level field name -> the citation supporting that field's
+            value. Present for every field in `data`. `verified` is true iff
+            `quote`, whitespace-normalized, was independently confirmed to be
+            a literal substring of the fetched page's plain text; `supportScore`
+            is forced to 0 whenever `verified` is false, regardless of what
+            the model itself reported.
+          additionalProperties:
+            type: object
+            properties:
+              quote:
+                type: string
+              supportScore:
+                type: number
+              verified:
+                type: boolean
+        flaggedFields:
+          type: array
+          items:
+            type: string
+        model:
+          type: string
+        budgetDegradation:
+          $ref: "#/components/schemas/BudgetDegradation"
