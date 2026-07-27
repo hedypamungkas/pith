@@ -22,6 +22,7 @@
     "prepublishOnly": "npm run test:smoke && npm run typecheck && npm run lint"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/jsdom": "^21.1.7",
     "@types/minimatch": "^5.1.2",
     "@types/node": "^20.14.15",
@@ -29,12 +30,14 @@
     "eslint": "^9.10.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.31.0",
+    "fastify": "^4.28.1",
     "nock": "^13.5.4",
     "playwright": "^1.61.1",
     "prettier": "^3.3.3",
     "tsup": "^8.3.0",
     "typescript": "^5.5.4",
     "typescript-eslint": "^8.4.0",
-    "vitest": "^2.0.5"
+    "vitest": "^2.0.5",
+    "zod-to-json-schema": "^3.25.2"
   }
 }

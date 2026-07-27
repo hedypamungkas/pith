@@ -11,6 +11,13 @@ export type Tier =
   | "extraction"
   | "cache";
 
+/** One tier attempt within a scrape, with its outcome — the unit cost events
+ * are recorded per-attempt. Canonical home is pricing (alongside Tier). */
+export interface ScrapeAttempt {
+  tier: Tier;
+  success: boolean;
+}
+
 export type TierPriceTable = Record<Tier, number>;
 
 /**

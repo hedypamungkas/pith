@@ -11,7 +11,7 @@
 
 // --- engine spine ---
 export { createEngine } from "./engine.js";
-export type { Engine } from "./engine.js";
+export type { Engine, EngineOptions, ExtractOptions, CrawlOptions } from "./engine.js";
 export { NotImplementedError, NotConfiguredError } from "./errors.js";
 export { createNullPorts } from "./ports/nullPorts.js";
 export type {
@@ -35,6 +35,7 @@ export {
   type Tier,
   type TierPriceTable,
   type CentsForTier,
+  type ScrapeAttempt,
 } from "./pricing.js";
 export {
   fetchBudgetFrom,
@@ -48,6 +49,31 @@ export {
 export { htmlToMarkdown, type ExtractedContent } from "./content/htmlToMarkdown.js";
 export { extractLinks, type LinkExtractionOptions } from "./crawl/linkExtractor.js";
 export { Semaphore } from "./lib/semaphore.js";
+
+// --- scrape core ---
+export {
+  scrapeUrlCore,
+  ScrapeAllTiersFailedError,
+  type ScrapeUrlResult,
+  type ScrapeUrlOptions,
+} from "./scrape/scrapeUrlCore.js";
+
+// --- crawl ---
+export { pureCrawler, type CrawlHandle, type CrawlKickoffOptions } from "./crawl/pureCrawler.js";
+export {
+  objectKeyForCrawlPage,
+  parseCrawlPageObjectKey,
+} from "./crawl/crawlPageContentStore.js";
+export type {
+  CrawlBounds,
+  CrawlStatus,
+  CrawlPageJobData,
+  CrawlPageDetail,
+  DiscoveredPage,
+  PageCounts,
+  PageStatus,
+  ResumablePausedPage,
+} from "./crawl/types.js";
 
 // --- fetch tier ---
 export {
@@ -94,6 +120,7 @@ export {
   createExtractionBackend,
   type ExtractionBackendOptions,
 } from "./extract/extractionBackend.js";
+export { extractPure, type ExtractResult } from "./extract/extractPure.js";
 
 // --- search layer ---
 export {

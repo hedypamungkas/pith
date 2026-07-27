@@ -12,9 +12,19 @@
  * firm up to their full shapes as the engine modules port in (spin-off step 3);
  * the names and responsibilities below are stable.
  */
+import type { ScrapeAttempt } from "../pricing.js";
+import type {
+  CreateCrawlInput,
+  CrawlStatus,
+  DiscoveredPage,
+  PageCounts,
+  PageStatus,
+  ResumablePausedPage,
+  CrawlPageDetail,
+} from "../crawl/types.js";
 
 export interface CostRecorder {
-  recordAttempts(attempts: unknown[]): Promise<void> | void;
+  recordAttempts(attempts: ScrapeAttempt[]): Promise<void> | void;
   recordCostEvent(event: unknown): Promise<void> | void;
   /** `false` here means idempotency sees a fresh request (no prior bill). */
   hasCostEventForRequest(requestId: string): Promise<boolean> | boolean;
@@ -27,12 +37,24 @@ export interface SnapshotStore {
 }
 
 export interface CrawlStateStore {
-  createCrawl(input: unknown): Promise<unknown> | unknown;
-  markPageStatus(crawlId: string, pageId: string, status: string): Promise<void> | void;
-  insertDiscoveredPages(crawlId: string, urls: string[]): Promise<unknown> | unknown;
-  finalizeCrawlIfDone(crawlId: string): Promise<boolean> | boolean;
-  getPageStatus(crawlId: string, pageId: string): Promise<string> | string;
-  listPausedPages(authSessionId: string): Promise<unknown[]> | unknown[];
+  createCrawl(input: CreateCrawlInput): Promise<number>;
+  markCrawlRunning(crawlId: string): Promise<void>;
+  markPageSuccess(pageId: number, requestId: string): Promise<void>;
+  markPageFailed(pageId: number, requestId: string, lastError?: string): Promise<void>;
+  markPagePaused(pageId: number, requestId: string, reason: string): Promise<void>;
+  markPagePending(pageId: number): Promise<void>;
+  insertDiscoveredPages(
+    crawlId: string,
+    maxPages: number,
+    pages: Array<{ url: string; depth: number }>,
+  ): Promise<DiscoveredPage[]>;
+  finalizeCrawlIfDone(crawlId: string): Promise<boolean>;
+  getPageStatus(pageId: number): Promise<PageStatus | null>;
+  getPageCounts(crawlId: string): Promise<PageCounts>;
+  getCrawlStatus(crawlId: string): Promise<CrawlStatus | null>;
+  incrementPageAttempt(pageId: number): Promise<void>;
+  listPausedPages(authSessionId: string): Promise<ResumablePausedPage[]>;
+  listPages(crawlId: string): Promise<CrawlPageDetail[]>;
 }
 
 export interface ContentStore {

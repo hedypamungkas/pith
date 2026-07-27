@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createEngine, NotImplementedError } from "../../src/index.js";
+import { createEngine, NotConfiguredError } from "../../src/index.js";
 
 describe("createEngine wiring", () => {
   it("returns an engine with fully-populated null ports", () => {
@@ -17,9 +17,18 @@ describe("createEngine wiring", () => {
     expect(engine.ports.costRecorder.hasCostEventForRequest("x")).toBe(false);
   });
 
-  it("engine methods throw NotImplementedError until step 3", () => {
+  it("extract/search reject with NotConfiguredError without a backend", async () => {
     const engine = createEngine();
-    expect(() => engine.scrape("https://example.com")).toThrow(NotImplementedError);
-    expect(() => engine.search("query")).toThrow(NotImplementedError);
+    await expect(
+      engine.extract("https://example.com", { type: "object" }),
+    ).rejects.toBeInstanceOf(NotConfiguredError);
+    await expect(engine.search("query")).rejects.toBeInstanceOf(NotConfiguredError);
+  });
+
+  it("crawl returns a handle (wait() drains to completion; exercised in integration)", async () => {
+    const engine = createEngine();
+    const handle = await engine.crawl("https://example.com");
+    expect(handle.crawlId).toBeTruthy();
+    expect(typeof handle.wait).toBe("function");
   });
 });
