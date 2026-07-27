@@ -4,14 +4,14 @@ These are the **maintainer go-live actions** — the things that can't be done f
 
 ## One-time setup (before the first release)
 
-1. **npm org — DONE.** The preferred `@pith` scope was unavailable (a dormant org owns it), so the package publishes under **`@use-pith/core`** (org `use-pith`, created at https://www.npmjs.com/org/create). For reference: orgs can't be created from the CLI — `npm org` only manages members of an *existing* org (`set`/`rm`/`ls`); use the web UI. Run `npm login` locally so you can `npm view` / dry-run (the publish itself runs in CI with `NPM_TOKEN`).
+1. **npm org — DONE.** The preferred `@pith` scope was unavailable (a dormant org owns it), so the package publishes under **`@use-pith/core`** (org `use-pith`, created at https://www.npmjs.com/org/create). For reference: orgs can't be created from the CLI — `npm org` only manages members of an *existing* org (`set`/`rm`/`ls`); use the web UI. Run `npm login` locally so you can `npm view` / dry-run (publish itself runs in CI via Trusted Publishing — no token).
 
    Scope-name ladder (if a future scope is unavailable, update `packages/core/package.json` `name` + the README install snippets + the badge URLs): `@use-pith/core` → `@pith-core/core` → unscoped `pith-core`.
 
-2. **GitHub repo.** Publish from the **`hedypamungkas/pith`** repo (personal). A dedicated `pith-core` org can be created later and the repo transferred — GitHub auto-redirects the old URL; just update `repository`/`homepage`/`bugs` in `packages/core/package.json` + the README badges + the SECURITY/COC links.
-   - Create + push in one shot: `gh repo create hedypamungkas/pith --public --source=. --push`.
-   - Add the `NPM_TOKEN` secret: `gh secret set NPM_TOKEN` (prompts securely) **or** repo Settings → Secrets and variables → Actions → New repository secret → name `NPM_TOKEN`.
-   - Provenance needs the build to originate from GitHub Actions (`release.yml` sets `id-token: write`).
+2. **GitHub repo + Trusted Publishing — DONE.** Publishes from **`hedypamungkas/pith`** via npm **Trusted Publishing** (keyless OIDC) — there is **no `NPM_TOKEN` secret**. A dedicated `pith-core` org can be created later and the repo transferred (GitHub auto-redirects; update `repository`/`homepage`/`bugs` in `packages/core/package.json` + README badges + SECURITY/COC links, and re-point the trusted publisher).
+   - Repo created + pushed: `gh repo create hedypamungkas/pith --public --source=. --push`.
+   - Trusted publisher configured on the package: npmjs.com → `@use-pith/core` → Settings → Trusted Publisher → GitHub Actions → `hedypamungkas` / `pith` / workflow `release.yml` / allowed `npm publish`.
+   - `release.yml` publishes with `id-token: write` + Node 24 (bundles npm ≥ 11.5.1); no `NPM_TOKEN`/`NODE_AUTH_TOKEN`.
 
 3. **Trademark check.** Run a live/dead search at [tmsearch.uspto.gov](https://tmsearch.uspto.gov/) for the mark **"PITH"** in **IC 009** (software) and **IC 042** (SaaS/tech services). Web search surfaced no notable tech brand named "Pith"; confirm there's no LIVE registration before the public announcement. (This is legal due-diligence — not something the repo can do for you.)
 

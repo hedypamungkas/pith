@@ -1,7 +1,10 @@
 name: release
 
-# Publishes @use-pith/core to the public npm registry when a `v*` tag is pushed.
-# Tags are cut manually after a release is staged on main.
+# Publishes @use-pith/core to npm via Trusted Publishing (keyless OIDC) when a
+# `v*` tag is pushed. No long-lived NPM_TOKEN secret: npm trusts this workflow
+# because a trusted publisher is configured on the package (npmjs.com →
+# @use-pith/core → Settings → Trusted Publisher → hedypamungkas/pith +
+# workflow `release.yml`). Requires npm CLI >= 11.5.1 (Node 24 bundles it).
 on:
   push:
     tags:
@@ -9,8 +12,9 @@ on:
 
 permissions:
   contents: read
-  # Required for npm provenance: lets Actions mint a short-lived OIDC token
-  # that npm uses to sign the package with build provenance.
+  # Required for Trusted Publishing: lets Actions mint a short-lived OIDC token
+  # that npm both authenticates the publish with AND signs the package's build
+  # provenance.
   id-token: write
 
 jobs:
@@ -28,9 +32,9 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
-          node-version: "22"
+          # Node 24 bundles npm >= 11.5.1, required for Trusted Publishing.
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
-          cache: "npm"
 
       - name: Install
         run: npm ci
@@ -38,18 +42,8 @@ jobs:
       - name: Build
         run: npm run build
 
-      # Provenance notes:
-      #  - `--provenance` signs the package with an OIDC token minted by GitHub
-      #    Actions. No long-lived publish token is needed *for the signature*,
-      #    but npm still requires an auth token (NPM_TOKEN, an automation token)
-      #    configured in repo secrets to authenticate the publish.
-      #  - `--access public` is required because @use-pith/core is a *public* scoped
-      #    package. The first publish fails without it. (It is also set in
-      #    packages/core/package.json publishConfig, but we pass it explicitly.)
-      #  - For fully keyless "trusted publishing" you'd switch to npm's OIDC
-      #    trusted-publishing flow and drop NPM_TOKEN entirely; we use the
-      #    standard NPM_TOKEN + provenance combo for now.
+      # Keyless publish — no NPM_TOKEN / NODE_AUTH_TOKEN. Trusted Publishing +
+      # provenance are implicit via id-token: write + the package's trusted
+      # publisher config. publishConfig.access=public handles public access.
       - name: Publish
-        run: npm publish -w @use-pith/core --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish -w @use-pith/core

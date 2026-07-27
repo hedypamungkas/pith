@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-07-27
+
+### Changed
+- Publishing switched to npm **Trusted Publishing** (keyless OIDC). The `release` workflow no longer uses a long-lived `NPM_TOKEN` secret — npm trusts the GitHub workflow via the trusted-publisher config on the package. Release runner moved to Node 24 (bundles npm ≥ 11.5.1, required for Trusted Publishing).
+
+No code or public-API changes.
+
 ## [0.1.1] - 2026-07-27
 
 ### Changed
@@ -64,6 +71,7 @@ by default.
   requirement, ESLint + Prettier + tsup build, and the CI/gitleaks/release
   workflows under `.github/`.
 
-[Unreleased]: https://github.com/hedypamungkas/pith/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/hedypamungkas/pith/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/hedypamungkas/pith/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/hedypamungkas/pith/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/hedypamungkas/pith/releases/tag/v0.1.0

@@ -1,6 +1,6 @@
 {
   "name": "pith",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "description": "Pith — the essential web, for agents. OSS engine for clean, LLM-ready web content (scrape, crawl, extract, search, MCP).",
