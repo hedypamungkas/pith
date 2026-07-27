@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-27
+
+### Changed
+- Dropped the npm `downloads` badge from the README (shields.io renders "package not found or too new" for a freshly-published package; it adds nothing yet).
+- CI matrix Node `20, 22` → `22, 24`; release workflow Node `20` → `22` — silences the GitHub Actions "Node.js 20 is deprecated" runner warning.
+
+No code or public-API changes.
+
 ## [0.1.0] - 2026-07-27
 
 First public release of `@use-pith/core` — the open-source web-for-agents engine
@@ -56,5 +64,6 @@ by default.
   requirement, ESLint + Prettier + tsup build, and the CI/gitleaks/release
   workflows under `.github/`.
 
-[Unreleased]: https://github.com/hedypamungkas/pith/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/hedypamungkas/pith/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/hedypamungkas/pith/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/hedypamungkas/pith/releases/tag/v0.1.0

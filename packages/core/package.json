@@ -1,6 +1,6 @@
 {
   "name": "@use-pith/core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Pith — the essential web, for agents. Embeddable engine: URL→clean markdown, crawl, structured extract, search, MCP (SDK + HTTP + MCP faces).",
   "license": "Apache-2.0",
