@@ -4,7 +4,7 @@
  * Every host concern the engine can touch (cost metering, request snapshots,
  * crawl state, page-content blob storage, the job queue, robots resolution,
  * freshness cache, and the clock) is an injectable port with an in-memory / no-op
- * default. This is the architectural seam that lets `@pith/core` run with zero
+ * default. This is the architectural seam that lets `@use-pith/core` run with zero
  * infrastructure by default while real backends (Postgres / MinIO / BullMQ /
  * Redis) drop in as adapters without touching engine logic.
  *

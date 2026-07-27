@@ -11,7 +11,7 @@ Environment variables (all required unless noted):
     EXTRACTION_API_KEY   API key for that chat endpoint.
     EXTRACTION_MODEL     Model name to invoke at that endpoint.
     MCP_URL              (optional) URL of the Pith MCP endpoint. Defaults to
-                         http://localhost:3000/mcp (the @pith/core/http route).
+                         http://localhost:3000/mcp (the @use-pith/core/http route).
 
 Setup:
     python3 -m venv .venv && source .venv/bin/activate

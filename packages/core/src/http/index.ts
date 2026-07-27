@@ -27,8 +27,8 @@ function statusFor(errorKind?: HandlerResult["errorKind"]): number {
 }
 
 /**
- * `@pith/core/http` — the optional Fastify HTTP face over the same handlers the
- * MCP face uses. Fastify is a dynamic import so the main `@pith/core` entry
+ * `@use-pith/core/http` — the optional Fastify HTTP face over the same handlers the
+ * MCP face uses. Fastify is a dynamic import so the main `@use-pith/core` entry
  * never requires it (an SDK-only consumer installs nothing extra).
  *
  *   const app = await createServer({ engine });

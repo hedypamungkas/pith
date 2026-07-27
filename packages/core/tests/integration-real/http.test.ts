@@ -14,7 +14,7 @@ vi.mock("../../src/fetch/ssrfGuard.js", async (importOriginal) => {
   return { ...actual, assertPublicHost: vi.fn().mockResolvedValue(undefined) };
 });
 
-describe("@pith/core/http", () => {
+describe("@use-pith/core/http", () => {
   let htmlServer: TestServerHandle;
   let app: FastifyInstance;
   let baseUrl: string;

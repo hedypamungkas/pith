@@ -3,10 +3,10 @@
 > The essential web, for agents. URL → clean markdown, crawl, structured extract, and search — with verifiable citations and deterministic request replay.
 
 [![CI](https://github.com/pith-core/pith/actions/workflows/ci.yml/badge.svg)](https://github.com/pith-core/pith/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/@pith/core.svg)](https://www.npmjs.com/package/@pith/core)
+[![npm version](https://img.shields.io/npm/v/@use-pith/core.svg)](https://www.npmjs.com/package/@use-pith/core)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
-[![node](https://img.shields.io/node/v/@pith/core.svg)](https://www.npmjs.com/package/@pith/core)
-[![downloads](https://img.shields.io/npm/dm/@pith/core.svg)](https://www.npmjs.com/package/@pith/core)
+[![node](https://img.shields.io/node/v/@use-pith/core.svg)](https://www.npmjs.com/package/@use-pith/core)
+[![downloads](https://img.shields.io/npm/dm/@use-pith/core.svg)](https://www.npmjs.com/package/@use-pith/core)
 
 Pith is an open-source web-for-LLMs engine: point it at a URL and get clean, LLM-ready markdown — plus multi-page crawl, provider-agnostic structured extraction (with per-field confidence and citations you can verify), web search, and an MCP server. It runs with **zero infrastructure and zero API keys by default**: in-memory stores, an in-process queue, no database, no object store, no job runner. Postgres / MinIO / BullMQ / LLM providers are optional adapters behind explicit [ports](./docs/ARCHITECTURE.md).
 
@@ -15,17 +15,17 @@ It's the core of a production web-for-LLMs platform, carved out as a library you
 ## Install
 
 ```bash
-npm install @pith/core
+npm install @use-pith/core
 # optional peers, installed only if you use that face:
-npm install fastify               # for @pith/core/http
-npm install @modelcontextprotocol/sdk zod-to-json-schema  # for @pith/core/mcp
+npm install fastify               # for @use-pith/core/http
+npm install @modelcontextprotocol/sdk zod-to-json-schema  # for @use-pith/core/mcp
 npm install playwright            # for the headless fetch tier
 ```
 
 ## Quickstart (SDK, zero env)
 
 ```ts
-import { createEngine } from "@pith/core";
+import { createEngine } from "@use-pith/core";
 
 const pith = createEngine();          // in-memory defaults — no keys, no containers
 
@@ -57,19 +57,19 @@ const { data, confidence, citations, flaggedFields } = await backend.extract(
 
 | Face | Import | What it is |
 |---|---|---|
-| **SDK** | `@pith/core` | `createEngine()` — call `scrape` / `crawl` / `extract` / `search` in-process. |
-| **HTTP** | `@pith/core/http` | `createServer({ engine })` — a Fastify app exposing `/health` + `/v1/scrape`, `/v1/crawl`, `/v1/crawl/:id`, `/v1/search`, `/v1/extract`. See [`docs/openapi.yaml`](./docs/openapi.yaml). |
-| **MCP** | `@pith/core/mcp` | `buildMcpServer({ engine })` — 5 tools: `scrape`, `search`, `crawl`, `get_crawl_status`, `extract`. Speaks the MCP protocol to any client. |
+| **SDK** | `@use-pith/core` | `createEngine()` — call `scrape` / `crawl` / `extract` / `search` in-process. |
+| **HTTP** | `@use-pith/core/http` | `createServer({ engine })` — a Fastify app exposing `/health` + `/v1/scrape`, `/v1/crawl`, `/v1/crawl/:id`, `/v1/search`, `/v1/extract`. See [`docs/openapi.yaml`](./docs/openapi.yaml). |
+| **MCP** | `@use-pith/core/mcp` | `buildMcpServer({ engine })` — 5 tools: `scrape`, `search`, `crawl`, `get_crawl_status`, `extract`. Speaks the MCP protocol to any client. |
 
 ```ts
 // HTTP
-import { createEngine } from "@pith/core";
-import { createServer } from "@pith/core/http";
+import { createEngine } from "@use-pith/core";
+import { createServer } from "@use-pith/core/http";
 const app = await createServer({ engine: createEngine() });
 await app.listen({ port: 3000, host: "127.0.0.1" });
 
 // MCP
-import { buildMcpServer } from "@pith/core/mcp";
+import { buildMcpServer } from "@use-pith/core/mcp";
 const server = await buildMcpServer({ engine: createEngine() });
 // …connect the SDK's StreamableHTTPServerTransport (see examples/mcp/)
 ```

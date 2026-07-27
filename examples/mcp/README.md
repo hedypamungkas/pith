@@ -1,6 +1,6 @@
 # Pith over MCP
 
-`@pith/core/mcp`'s `buildMcpServer({ engine })` returns a standard MCP server exposing five tools: `scrape`, `search`, `crawl`, `get_crawl_status`, `extract`. Connect it to any MCP transport.
+`@use-pith/core/mcp`'s `buildMcpServer({ engine })` returns a standard MCP server exposing five tools: `scrape`, `search`, `crawl`, `get_crawl_status`, `extract`. Connect it to any MCP transport.
 
 ## Stdio (recommended for desktop clients)
 
@@ -20,7 +20,7 @@ Use an absolute path (desktop clients don't run from your repo root). Restart th
 
 ## Streamable HTTP (optional)
 
-For a network-accessible server, connect the same `buildMcpServer` result to a `StreamableHTTPServerTransport` behind your own HTTP host (the `@pith/core/http` Fastify face serves the REST `/v1/*` surface, **not** `/mcp` — mount the MCP transport separately if you need it on the same port). See the MCP SDK docs for the transport setup.
+For a network-accessible server, connect the same `buildMcpServer` result to a `StreamableHTTPServerTransport` behind your own HTTP host (the `@use-pith/core/http` Fastify face serves the REST `/v1/*` surface, **not** `/mcp` — mount the MCP transport separately if you need it on the same port). See the MCP SDK docs for the transport setup.
 
 ## Enabling extract / search
 

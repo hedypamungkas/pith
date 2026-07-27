@@ -5,14 +5,14 @@ info:
     Pith is an embeddable web-for-LLMs engine: it turns URLs into clean
     Markdown, crawls sites, runs structured extraction against a caller-
     supplied JSON Schema, and searches the web — all tuned for LLM/agent
-    consumption. This is the optional HTTP face exposed by @pith/core; the
+    consumption. This is the optional HTTP face exposed by @use-pith/core; the
     engine itself is also usable directly as a library. The HTTP face
     ships with no built-in authentication — gate it with your own Fastify
     middleware in front of the returned app if you need access control.
   version: "0.1.0"
 servers:
   - url: http://localhost:3000
-    description: Local @pith/core/http server (createServer({ engine }).listen(...))
+    description: Local @use-pith/core/http server (createServer({ engine }).listen(...))
 
 # No auth by default — the HTTP face is open. Gate it with your own
 # Fastify middleware in front of the returned app if you need access control.

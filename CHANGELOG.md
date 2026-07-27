@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.0] - 2026-07-27
 
-First public release of `@pith/core` — the open-source web-for-agents engine
+First public release of `@use-pith/core` — the open-source web-for-agents engine
 extracted from a production web-for-LLMs platform. Pith turns any URL into
 clean, LLM-ready Markdown, with crawl, provider-agnostic structured extraction,
 web search, and an MCP server — all with zero infrastructure and zero API keys
@@ -30,9 +30,9 @@ by default.
   - **Web search**: pluggable search provider (Brave adapter included) feeding
     results back into scrape/extract.
 - **Three consumption faces** over one engine:
-  - **SDK** — `import { createEngine } from "@pith/core"`.
-  - **HTTP** — `@pith/core/http`, a Fastify server exposing the OpenAPI-documented REST surface.
-  - **MCP** — `@pith/core/mcp`, a Model Context Protocol server with 5 tools (scrape, crawl, extract, search, map).
+  - **SDK** — `import { createEngine } from "@use-pith/core"`.
+  - **HTTP** — `@use-pith/core/http`, a Fastify server exposing the OpenAPI-documented REST surface.
+  - **MCP** — `@use-pith/core/mcp`, a Model Context Protocol server with 5 tools (scrape, crawl, extract, search, map).
 - **Zero-infrastructure defaults** via a ports-and-adapters dependency-injection
   model: in-memory stores and an in-process queue work out of the box; Postgres,
   MinIO, BullMQ, and LLM/search providers are opt-in adapters. The package has

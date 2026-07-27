@@ -1,6 +1,6 @@
 name: release
 
-# Publishes @pith/core to the public npm registry when a `v*` tag is pushed.
+# Publishes @use-pith/core to the public npm registry when a `v*` tag is pushed.
 # Tags are cut manually after a release is staged on main.
 on:
   push:
@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   publish:
-    name: Publish @pith/core
+    name: Publish @use-pith/core
     runs-on: ubuntu-latest
     # Guard against accidental tags on non-default branches.
     if: startsWith(github.ref, 'refs/tags/v')
@@ -43,13 +43,13 @@ jobs:
       #    Actions. No long-lived publish token is needed *for the signature*,
       #    but npm still requires an auth token (NPM_TOKEN, an automation token)
       #    configured in repo secrets to authenticate the publish.
-      #  - `--access public` is required because @pith/core is a *public* scoped
+      #  - `--access public` is required because @use-pith/core is a *public* scoped
       #    package. The first publish fails without it. (It is also set in
       #    packages/core/package.json publishConfig, but we pass it explicitly.)
       #  - For fully keyless "trusted publishing" you'd switch to npm's OIDC
       #    trusted-publishing flow and drop NPM_TOKEN entirely; we use the
       #    standard NPM_TOKEN + provenance combo for now.
       - name: Publish
-        run: npm publish -w @pith/core --provenance --access public
+        run: npm publish -w @use-pith/core --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

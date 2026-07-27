@@ -5,22 +5,20 @@ Pith is **one core, three faces**, built on a ports-and-adapters (hexagonal) spi
 ## One core, three faces
 
 ```text
-                 ┌──────────── createEngine() ────────────┐
-   SDK ─────────▶│                                        │
-   (@pith/core)  │  scrape · crawl · extract · search     │
-                 │  (one request-handling core, shared)   │
-   HTTP ────────▶│                                        │◀──▶ CorePorts  (8 ports)
-   (@pith/core/  │  handle*RequestPure → engine           │       null defaults
-    http)        │                                        │       + caller overrides
-                 │                                        │
-   MCP ─────────▶│                                        │
-   (@pith/core/  │                                        │
-    mcp)         └────────────────────────────────────────┘
+   SDK  ──┐
+   HTTP ──┼──▶  createEngine()  ·  scrape · crawl · extract · search
+   MCP  ──┘     (one request-handling core, three transports)
+                        │
+                        ▼
+                  CorePorts  (8 ports, null defaults + caller overrides)
+                  real adapters optional — Postgres / MinIO / BullMQ / …
+
+   SDK  → @use-pith/core      HTTP → @use-pith/core/http      MCP → @use-pith/core/mcp
 ```
 
 - **SDK** (`createEngine`) — call `scrape` / `crawl` / `extract` / `search` in-process. The primary surface.
-- **HTTP** (`@pith/core/http`) — `createServer({ engine })`, a Fastify app exposing `/health` + `/v1/*` (see [`openapi.yaml`](./openapi.yaml)). No built-in auth — gate it with your own Fastify middleware in front of the returned app.
-- **MCP** (`@pith/core/mcp`) — `buildMcpServer({ engine })`, 5 tools (`scrape`, `search`, `crawl`, `get_crawl_status`, `extract`). Optional cost overlay via `costOverlay`.
+- **HTTP** (`@use-pith/core/http`) — `createServer({ engine })`, a Fastify app exposing `/health` + `/v1/*` (see [`openapi.yaml`](./openapi.yaml)). No built-in auth — gate it with your own Fastify middleware in front of the returned app.
+- **MCP** (`@use-pith/core/mcp`) — `buildMcpServer({ engine })`, 5 tools (`scrape`, `search`, `crawl`, `get_crawl_status`, `extract`). Optional cost overlay via `costOverlay`.
 
 The HTTP and MCP faces share the same pure request handlers as the SDK — one request-handling core, three transports. `fastify`, `@modelcontextprotocol/sdk`, and `playwright` are **optional peers**, dynamically imported only by the face that needs them, so an SDK-only consumer installs nothing extra.
 
@@ -43,7 +41,7 @@ The engine reads ports only through this interface — a real backend never touc
 
 ## The "no infrastructure on import" invariant
 
-Importing `@pith/core` and calling `createEngine()` must pull in **zero host infrastructure**. This is enforced two ways:
+Importing `@use-pith/core` and calling `createEngine()` must pull in **zero host infrastructure**. This is enforced two ways:
 
 1. **A smoke test** (`packages/core/tests/smoke/no-infra-on-import.test.ts`) that imports the package and asserts no infra module is reachable.
 2. **An ESLint rule** (`import/no-restricted-paths`) forbidding `packages/core/src/**` from importing `pg`, `ioredis`, `bullmq`, `minio`, `kafkajs`, or any module that constructs an infra client at load time.

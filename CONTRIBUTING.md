@@ -48,7 +48,7 @@ Before touching engine logic, read [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.
 
 ## Releases
 
-Releases are cut by tagging (`v0.x.0`); the `release` workflow builds and publishes `@pith/core` with npm provenance. Maintainer steps are in [`docs/RELEASE.md`](./docs/RELEASE.md).
+Releases are cut by tagging (`v0.x.0`); the `release` workflow builds and publishes `@use-pith/core` with npm provenance. Maintainer steps are in [`docs/RELEASE.md`](./docs/RELEASE.md).
 
 ## Reporting security issues
 

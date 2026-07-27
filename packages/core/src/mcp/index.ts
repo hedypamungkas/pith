@@ -152,12 +152,12 @@ async function applyCostOverlay(
 }
 
 /**
- * `@pith/core/mcp` — the optional MCP face over the same handlers the HTTP face
+ * `@use-pith/core/mcp` — the optional MCP face over the same handlers the HTTP face
  * uses (one request-handling core, two transports). Uses the SDK's low-level
  * `Server` + `setRequestHandler` API deliberately (registerTool's zod-compat
  * layer is brittle against some zod versions). `@modelcontextprotocol/sdk` and
  * `zod-to-json-schema` are dynamic imports (optional peers), so the main
- * `@pith/core` entry never requires them.
+ * `@use-pith/core` entry never requires them.
  */
 export async function buildMcpServer(options: McpServerOptions): Promise<Server> {
   const { engine, costOverlay } = options;

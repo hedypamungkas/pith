@@ -1,6 +1,6 @@
 /**
  * Thrown by engine entry points that have not been ported yet (spin-off steps
- * 2–3), and by `@pith/core/http` / `@pith/core/mcp` faces until step 3.
+ * 2–3), and by `@use-pith/core/http` / `@use-pith/core/mcp` faces until step 3.
  */
 export class NotImplementedError extends Error {
   constructor(feature: string) {

@@ -18,7 +18,7 @@ describe("no infrastructure on import (the architectural gate)", () => {
     expect(() => createEngine()).not.toThrow();
   });
 
-  it("@pith/core declares no infra in dependencies / peerDependencies / optionalDependencies", () => {
+  it("@use-pith/core declares no infra in dependencies / peerDependencies / optionalDependencies", () => {
     const declared: Record<string, unknown> = {
       ...(corePkg["dependencies"] ?? {}),
       ...(corePkg["peerDependencies"] ?? {}),

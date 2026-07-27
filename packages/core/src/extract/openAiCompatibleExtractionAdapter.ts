@@ -185,7 +185,7 @@ interface ChatCompletionResponse {
 
 /**
  * @deprecated Import LOW_CONFIDENCE_THRESHOLD from the extraction port
- * (`@pith/core`'s `extractionPort`). Re-exported here for one major version
+ * (`@use-pith/core`'s `extractionPort`). Re-exported here for one major version
  * for consumers importing it from the adapter path.
  */
 export { LOW_CONFIDENCE_THRESHOLD };

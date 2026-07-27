@@ -12,7 +12,7 @@ vi.mock("../../src/fetch/ssrfGuard.js", async (importOriginal) => {
   return { ...actual, assertPublicHost: vi.fn().mockResolvedValue(undefined) };
 });
 
-describe("@pith/core/mcp", () => {
+describe("@use-pith/core/mcp", () => {
   let htmlServer: TestServerHandle;
   let engine: ReturnType<typeof createEngine>;
 

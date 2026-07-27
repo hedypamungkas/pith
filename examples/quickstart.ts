@@ -12,7 +12,7 @@ import {
   createEngine,
   createExtractionBackend,
   createBraveSearchBackend,
-} from "@pith/core";
+} from "@use-pith/core";
 
 async function main() {
   // 1) Scrape — works with zero config (static → headless escalation).

@@ -9,10 +9,10 @@
  * Run (after `npm install` + `npm run build` in the repo):
  *   npx tsx examples/mcp/server.ts
  *
- * Requires `@modelcontextprotocol/sdk` (an optional peer of @pith/core).
+ * Requires `@modelcontextprotocol/sdk` (an optional peer of @use-pith/core).
  */
-import { createEngine } from "@pith/core";
-import { buildMcpServer } from "@pith/core/mcp";
+import { createEngine } from "@use-pith/core";
+import { buildMcpServer } from "@use-pith/core/mcp";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 const server = await buildMcpServer({

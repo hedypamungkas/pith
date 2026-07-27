@@ -1,13 +1,12 @@
-# Release checklist (`@pith/core`)
+# Release checklist (`@use-pith/core`)
 
 These are the **maintainer go-live actions** — the things that can't be done from a code change (they need credentials, account creation, or external services). The repo itself is publish-ready once `npm pack --dry-run` is clean (verified in CI on every PR).
 
 ## One-time setup (before the first release)
 
-1. **npm org.** Orgs can't be created from the CLI — `npm org` only manages members of an *existing* org (`set`/`rm`/`ls`). Create the `pith` org via the web UI, then log in locally:
-   - Create the org at **https://www.npmjs.com/org/create** (free tier is fine; the org owns the `@pith` scope). This page is also the definitive availability check — if `@pith` is taken, it tells you here.
-   - Then `npm login` locally so you can `npm view` / dry-run. (The publish itself runs in CI with `NPM_TOKEN`.)
-   If `@pith` is claimed, fall back the package name down this ladder and update `packages/core/package.json` + the README install snippets: `@pith/core` → `@pith-core/core` → unscoped `pith-core`. (Due-diligence as of 2026-07: `@pith/core` and the `@pith` scope appear unclaimed.)
+1. **npm org — DONE.** The preferred `@pith` scope was unavailable (a dormant org owns it), so the package publishes under **`@use-pith/core`** (org `use-pith`, created at https://www.npmjs.com/org/create). For reference: orgs can't be created from the CLI — `npm org` only manages members of an *existing* org (`set`/`rm`/`ls`); use the web UI. Run `npm login` locally so you can `npm view` / dry-run (the publish itself runs in CI with `NPM_TOKEN`).
+
+   Scope-name ladder (if a future scope is unavailable, update `packages/core/package.json` `name` + the README install snippets + the badge URLs): `@use-pith/core` → `@pith-core/core` → unscoped `pith-core`.
 
 2. **GitHub org + repo.** Create the `pith-core` org (the `pith` handle is a personal account — unavailable), push this repo as `pith-core/pith`, and add the `NPM_TOKEN` secret (a classic automation token with publish scope) at **Settings → Secrets and variables → Actions**. Provenance also needs the build to originate from GitHub (the `release.yml` workflow sets `id-token: write`).
 
@@ -25,7 +24,7 @@ These are the **maintainer go-live actions** — the things that can't be done f
    git push origin main --tags
    ```
 4. The **`release`** GitHub Action (`.github/workflows/release.yml`) fires on the `v*` tag: `npm ci` → `npm run build` → `npm publish --provenance --access public` from `packages/core`. Confirm the run is green and the npm page shows the new version with provenance attestation.
-5. Sanity-check the published package: `npm view @pith/core version` and a clean-room `npm install @pith/core` + `node -e "import('@pith/core').then(m=>m.createEngine())"`.
+5. Sanity-check the published package: `npm view @use-pith/core version` and a clean-room `npm install @use-pith/core` + `node -e "import('@use-pith/core').then(m=>m.createEngine())"`.
 
 ## Domains (optional, for a landing page)
 

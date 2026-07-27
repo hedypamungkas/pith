@@ -22,7 +22,7 @@ const headlessSemaphore = new Semaphore(MAX_CONCURRENT_CONTEXTS);
 /** Launches the single shared browser process. Call once at worker startup. */
 export async function launchBrowser(): Promise<void> {
   if (browser) return;
-  // Lazy import so `@pith/core` itself never requires Playwright at module load
+  // Lazy import so `@use-pith/core` itself never requires Playwright at module load
   // — a static-only consumer pays nothing for it. Only launching the browser
   // (the headless tier) pulls it in.
   const { chromium } = await import("playwright");
