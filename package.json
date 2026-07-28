@@ -22,7 +22,7 @@
     "prepublishOnly": "npm run build && npm run test:smoke && npm run typecheck && npm run lint"
   },
   "devDependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@types/jsdom": "^21.1.7",
     "@types/minimatch": "^5.1.2",
     "@types/node": "^20.14.15",
