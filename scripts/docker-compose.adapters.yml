@@ -9,6 +9,8 @@
 #
 #   docker compose -f scripts/docker-compose.adapters.yml up -d
 #   PG_DATABASE_URL=postgres://pith:pith@127.0.0.1:55432/pith_test \
+#   MINIO_ENDPOINT=127.0.0.1 MINIO_PORT=9100 MINIO_ACCESS_KEY=minioadmin \
+#   MINIO_SECRET_KEY=minioadmin MINIO_BUCKET=pith-test \
 #     npm run test:integration:real
 services:
   postgres:
@@ -24,3 +26,16 @@ services:
       interval: 2s
       timeout: 2s
       retries: 20
+
+  # S3-compatible object store for the @use-pith/adapters-minio integration
+  # tests. No healthcheck command (the minio image has no curl); the tests
+  # retry `ensureBucket` in beforeAll until it's reachable.
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9100:9000"
+      - "9101:9001"

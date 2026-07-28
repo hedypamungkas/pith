@@ -1,11 +1,11 @@
 name: adapters-nightly
 
-# The PG_DATABASE_URL-gated @use-pith/adapters-pg integration suite (real
-# Postgres). Runs on a schedule (and manually), NEVER on push/PR — it needs a
-# container and must never block a code change. The key-free PGlite unit suite
-# runs in ci.yml; this nightly exercises the real-Postgres paths the
-# single-threaded WASM DB can't: FOR UPDATE serialization and multi-connection
-# parallelism, plus the engine restart-survival E2E.
+# The container-gated adapter integration suites (real Postgres + real MinIO).
+# Runs on a schedule (and manually), NEVER on push/PR — they need containers
+# and must never block a code change. The key-free PGlite / FakeMinioStore unit
+# suites run in ci.yml; these nightlies exercise the real-Postgres / real-MinIO
+# paths the in-process fakes can't: FOR UPDATE serialization, multi-connection
+# parallelism, real S3 semantics, and the engine restart-survival E2E.
 on:
   schedule:
     - cron: "23 7 * * *"
@@ -19,20 +19,11 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PG_DATABASE_URL: postgres://pith:pith@127.0.0.1:55432/pith_test
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: pith
-          POSTGRES_PASSWORD: pith
-          POSTGRES_DB: pith_test
-        ports:
-          - 55432:5432
-        options: >-
-          --health-cmd "pg_isready -U pith -d pith_test"
-          --health-interval 2s
-          --health-timeout 2s
-          --health-retries 20
+      MINIO_ENDPOINT: 127.0.0.1
+      MINIO_PORT: "9100"
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: pith-test
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -41,7 +32,13 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      # Scope to the adapter's integration-real tests — avoids pulling in core's
-      # Playwright/browser suite (the adapter's restart-survival crawl mocks the
-      # SSRF guard and stays on the static tier, no headless browser needed).
+      # Stand up both services via the same compose used locally. `--wait`
+      # blocks until the postgres healthcheck is healthy; minio has no
+      # healthcheck command (the image lacks curl), so its readiness is handled
+      # by the tests retrying `ensureBucket` in beforeAll.
+      - run: docker compose -f scripts/docker-compose.adapters.yml up -d --wait
       - run: npx vitest run --project integration-real packages/adapters-pg
+      - run: npx vitest run --project integration-real packages/adapters-minio
+      - name: Tear down services
+        if: always()
+        run: docker compose -f scripts/docker-compose.adapters.yml down

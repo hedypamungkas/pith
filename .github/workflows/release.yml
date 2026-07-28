@@ -1,11 +1,12 @@
 name: release
 
-# Publishes @use-pith/core and @use-pith/adapters-pg to npm via Trusted
-# Publishing (keyless OIDC) when a `v*` tag is pushed. No long-lived NPM_TOKEN
-# secret: npm trusts this workflow because a trusted publisher is configured on
-# each package (npmjs.com → @use-pith/{core,adapters-pg} → Settings → Trusted
-# Publisher → hedypamungkas/pith + workflow `release.yml`). Requires npm CLI
-# >= 11.5.1 (Node 24 bundles it).
+# Publishes @use-pith/core, @use-pith/adapters-pg, and @use-pith/adapters-minio
+# to npm via Trusted Publishing (keyless OIDC) when a `v*` tag is pushed. No
+# long-lived NPM_TOKEN secret: npm trusts this workflow because a trusted
+# publisher is configured on each package (npmjs.com →
+# @use-pith/{core,adapters-pg,adapters-minio} → Settings → Trusted Publisher →
+# hedypamungkas/pith + workflow `release.yml`). Requires npm CLI >= 11.5.1
+# (Node 24 bundles it).
 on:
   push:
     tags:
@@ -63,4 +64,10 @@ jobs:
       # publisher (@use-pith/adapters-pg) must be registered on npmjs.com too.
       - name: Publish @use-pith/adapters-pg
         working-directory: packages/adapters-pg
+        run: npm publish
+
+      # Same keyless publish for the MinIO adapter. Its trusted publisher
+      # (@use-pith/adapters-minio) must be registered on npmjs.com too.
+      - name: Publish @use-pith/adapters-minio
+        working-directory: packages/adapters-minio
         run: npm publish
