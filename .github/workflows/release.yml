@@ -1,10 +1,11 @@
 name: release
 
-# Publishes @use-pith/core to npm via Trusted Publishing (keyless OIDC) when a
-# `v*` tag is pushed. No long-lived NPM_TOKEN secret: npm trusts this workflow
-# because a trusted publisher is configured on the package (npmjs.com →
-# @use-pith/core → Settings → Trusted Publisher → hedypamungkas/pith +
-# workflow `release.yml`). Requires npm CLI >= 11.5.1 (Node 24 bundles it).
+# Publishes @use-pith/core and @use-pith/adapters-pg to npm via Trusted
+# Publishing (keyless OIDC) when a `v*` tag is pushed. No long-lived NPM_TOKEN
+# secret: npm trusts this workflow because a trusted publisher is configured on
+# each package (npmjs.com → @use-pith/{core,adapters-pg} → Settings → Trusted
+# Publisher → hedypamungkas/pith + workflow `release.yml`). Requires npm CLI
+# >= 11.5.1 (Node 24 bundles it).
 on:
   push:
     tags:
@@ -54,6 +55,12 @@ jobs:
       # `-w` workspace form does not trigger the OIDC publish-auth path).
       # Trusted Publishing + provenance are implicit via id-token: write + the
       # package's trusted publisher config; publishConfig.access=public sets access.
-      - name: Publish
+      - name: Publish @use-pith/core
         working-directory: packages/core
+        run: npm publish
+
+      # Same keyless publish from the adapter's package dir. Its trusted
+      # publisher (@use-pith/adapters-pg) must be registered on npmjs.com too.
+      - name: Publish @use-pith/adapters-pg
+        working-directory: packages/adapters-pg
         run: npm publish

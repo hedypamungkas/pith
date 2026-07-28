@@ -1,0 +1,26 @@
+# Postgres for the @use-pith/adapters-pg integration tests (the
+# `integration-real` vitest project). Used locally and by
+# .github/workflows/adapters-nightly.yml.
+#
+# The unit tests run on PGlite (no container). This stack is ONLY for the
+# concurrency + restart-survival paths that need real row locks (FOR UPDATE)
+# and multi-connection parallelism that a single-threaded WASM Postgres
+# can't faithfully exercise.
+#
+#   docker compose -f scripts/docker-compose.adapters.yml up -d
+#   PG_DATABASE_URL=postgres://pith:pith@127.0.0.1:55432/pith_test \
+#     npm run test:integration:real
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pith
+      POSTGRES_PASSWORD: pith
+      POSTGRES_DB: pith_test
+    ports:
+      - "55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pith -d pith_test"]
+      interval: 2s
+      timeout: 2s
+      retries: 20

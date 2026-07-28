@@ -29,6 +29,11 @@ jobs:
       # run, no migrate, no third-party API secrets. Everything below must pass
       # with zero environment.
       - run: npm ci
+      # Build the workspace packages first: @use-pith/adapters-pg imports
+      # @use-pith/core, whose types resolve via package.json#types → dist/.
+      # Without this, `tsc` (and the runtime tests, which load the adapter
+      # source importing @use-pith/core) can't resolve @use-pith/core (TS2307).
+      - run: npm run build
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test:unit

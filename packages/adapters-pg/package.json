@@ -1,0 +1,68 @@
+{
+  "name": "@use-pith/adapters-pg",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Pith — Postgres adapters for the CorePorts (CrawlStateStore, CostRecorder, SnapshotStore, FreshnessCache). Drop-in persistence for @use-pith/core.",
+  "license": "Apache-2.0",
+  "author": "The Pith Authors",
+  "homepage": "https://github.com/hedypamungkas/pith#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hedypamungkas/pith.git",
+    "directory": "packages/adapters-pg"
+  },
+  "bugs": {
+    "url": "https://github.com/hedypamungkas/pith/issues"
+  },
+  "keywords": [
+    "pith",
+    "postgres",
+    "pg",
+    "adapter",
+    "ports-and-adapters",
+    "crawl",
+    "persistence",
+    "freshness",
+    "cost"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true,
+    "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "pg": "^8.22.0"
+  },
+  "peerDependencies": {
+    "@use-pith/core": "^0.1.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "migrations",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.18.0"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4",
+    "@types/pg": "^8.20.0"
+  }
+}
