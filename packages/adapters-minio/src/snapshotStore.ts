@@ -14,11 +14,12 @@ interface SnapshotLike {
  * `request-snapshots/<requestId>.json` key (core's
  * `objectKeyForRequestSnapshot`) and round-trips exactly for any shape.
  *
- * Parity with {@link InMemorySnapshotStore} / `PgSnapshotStore`: `capture` is a
- * no-op when the object lacks a string `requestId`; `load` returns `undefined`
- * for a missing key. The JSON round-trip matches `PgSnapshotStore` (which
- * stores `$2::jsonb`) — both serialize, so a payload is JSON-safe in practice
- * (the crawler's snapshot carries no `Date` values).
+ * Parity with `PgSnapshotStore`: `capture` is a no-op unless the object carries
+ * a string `requestId`, and `load` returns `undefined` for a missing key. (The
+ * in-memory default is looser — it accepts any `requestId` via an `in` check,
+ * which this adapter rejects.) The JSON round-trip matches `PgSnapshotStore`
+ * (which stores `$2::jsonb`) — both serialize, so a payload is JSON-safe in
+ * practice (the crawler's snapshot carries no `Date` values).
  */
 export class MinioSnapshotStore implements SnapshotStore {
   constructor(private readonly blob: BlobStore) {}

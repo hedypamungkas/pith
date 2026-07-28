@@ -5,9 +5,9 @@ import type {
   DueUrl,
 } from "@use-pith/core";
 import type { ScrapeUrlResult } from "@use-pith/core";
-import type { Queryable } from "@use-pith/adapters-pg";
+import type { Queryable } from "./queryable.js";
 import type { BlobStore } from "./blobStore.js";
-import { freshnessObjectKey, toDate } from "./util.js";
+import { freshnessObjectKey, isNotFound, toDate } from "./util.js";
 
 interface FreshnessMetaRow {
   url: string;
@@ -60,6 +60,10 @@ export class MinioFreshnessCache implements FreshnessCache {
     if (!r) return null;
     const raw = await this.blob.get(r.content_object_key);
     if (raw === undefined) return null;
+    // A present-but-unparseable or wrong-shape body is a cache miss by design,
+    // not a thrown error: the next `record(url)` overwrites the key and heals
+    // it, matching `PgFreshnessCache`'s `markdown`-shape miss. Never serve a
+    // half-reconstructed record.
     let content: ScrapeUrlResult;
     try {
       content = JSON.parse(raw) as ScrapeUrlResult;
@@ -83,8 +87,11 @@ export class MinioFreshnessCache implements FreshnessCache {
     const nextDueAt = new Date(
       input.crawledAt.getTime() + input.requestedTierMaxStalenessSeconds * 1000,
     );
-    // Body first, then the metadata pointer. Object key is stable per url, so
-    // this overwrites (refreshes content) even when the tier isn't adopted.
+    // Body first, then the metadata pointer, so tryGet never observes a
+    // pointer to a missing body. The object key is stable per url, so this
+    // overwrites (refreshes content) even when the tier isn't adopted — and if
+    // the metadata upsert below throws, the orphaned body is bounded (≤1 per
+    // url) and heals on the next record(url) (or is reaped by delete(url)).
     await this.blob.put(objectKey, JSON.stringify(input.content));
     await this.pg.query(
       `INSERT INTO freshness_meta
@@ -132,17 +139,39 @@ export class MinioFreshnessCache implements FreshnessCache {
   }
 
   async delete(url: string): Promise<boolean> {
+    // Erase is the DSAR / cross-tenant path, so never report success while the
+    // body (the actual cached content, incl. HTML) still exists. Look up the
+    // body key, delete the body FIRST — letting non-NotFound failures throw —
+    // then drop the metadata row. A failure is therefore observable AND
+    // retryable: the row stays put, so retrying the same delete converges.
+    // (The reverse order — row first, best-effort blob — orphans the body at a
+    // stable per-URL key with no row left to rediscover it, and reports a clean
+    // erase that didn't happen.)
     const { rows } = await this.pg.query<{ content_object_key: string }>(
-      `DELETE FROM freshness_meta WHERE url = $1 RETURNING content_object_key`,
+      `SELECT content_object_key FROM freshness_meta WHERE url = $1`,
       [url],
     );
-    if (rows.length === 0) return false;
-    try {
-      await this.blob.delete(rows[0]!.content_object_key);
-    } catch {
-      /* best-effort blob cleanup; the metadata row is already gone */
+    const row = rows[0];
+    if (!row) {
+      // No metadata row. Still reap a body orphaned by a prior failed `record`
+      // (blob put succeeded, metadata upsert threw) — idempotent on a missing
+      // object. No row existed, so the erase result is still `false`.
+      await this.deleteBody(freshnessObjectKey(url));
+      return false;
     }
+    await this.deleteBody(row.content_object_key);
+    await this.pg.query(`DELETE FROM freshness_meta WHERE url = $1`, [url]);
     return true;
+  }
+
+  /** Delete a body blob, tolerating an already-missing object (idempotent
+   *  erase / reclamation); surface every other error so the caller can retry. */
+  private async deleteBody(objectKey: string): Promise<void> {
+    try {
+      await this.blob.delete(objectKey);
+    } catch (err) {
+      if (!isNotFound(err)) throw err;
+    }
   }
 }
 

@@ -1,5 +1,5 @@
 import { PGlite } from "@electric-sql/pglite";
-import type { Queryable } from "@use-pith/adapters-pg";
+import type { Queryable } from "../../src/queryable.js";
 
 /**
  * A {@link Queryable} backed by PGlite — in-process Postgres via WASM. Used by

@@ -3,9 +3,12 @@ import { bufferStream, isNotFound } from "./util.js";
 
 /**
  * The minimal object-store surface the MinIO adapters depend on — structurally
- * identical to {@link ContentStore} (`put`/`get`/`list`/`delete`). `MinioContentStore`
- * *is* a BlobStore over a bucket, and the snapshot/freshness offload adapters
- * reuse it for body put/get. Depends on the `minio` client, never on core.
+ * identical to {@link ContentStore} (`put`/`get`/`list`/`delete`). The interface
+ * itself is plain TypeScript (no `minio` types); `MinioContentStore` *is* a
+ * BlobStore over a bucket, and the snapshot/freshness offload adapters reuse it
+ * for body put/get. Only the concrete {@link MinioBlobStore} pulls in the
+ * `minio` client — the interface (and its consumers) never import `minio` or
+ * core.
  */
 export interface BlobStore {
   put(key: string, body: string | Uint8Array): Promise<void>;

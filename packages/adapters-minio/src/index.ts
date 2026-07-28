@@ -32,3 +32,4 @@ export {
 } from "./freshnessCache.js";
 export { runMigrations } from "./migrate.js";
 export { freshnessObjectKey } from "./util.js";
+export type { Queryable } from "./queryable.js";
