@@ -1,0 +1,71 @@
+{
+  "name": "@use-pith/adapters-minio",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Pith — S3/MinIO adapters for the CorePorts (ContentStore, SnapshotStore, and a PG-metadata + MinIO-body FreshnessCache). Body offload for @use-pith/core.",
+  "license": "Apache-2.0",
+  "author": "The Pith Authors",
+  "homepage": "https://github.com/hedypamungkas/pith#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hedypamungkas/pith.git",
+    "directory": "packages/adapters-minio"
+  },
+  "bugs": {
+    "url": "https://github.com/hedypamungkas/pith/issues"
+  },
+  "keywords": [
+    "pith",
+    "minio",
+    "s3",
+    "object-storage",
+    "adapter",
+    "ports-and-adapters",
+    "content-store",
+    "blob"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true,
+    "registry": "https://registry.npmjs.org/"
+  },
+  "peerDependencies": {
+    "@use-pith/core": "^0.1.0",
+    "@use-pith/adapters-pg": "^0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@use-pith/adapters-pg": { "optional": true, "reason": "Only MinioFreshnessCache needs a Postgres Queryable for its freshness_meta metadata; MinioContentStore/MinioSnapshotStore are pure-MinIO." }
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4",
+    "@types/pg": "^8.20.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "migrations",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.18.0"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "minio": "^8.0.7"
+  }
+}
