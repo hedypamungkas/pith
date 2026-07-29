@@ -24,6 +24,9 @@ export type {
   JobQueue,
   ScrapeJobData,
   ExtractJobData,
+  ScrapeProcessor,
+  CrawlPageProcessor,
+  ExtractProcessor,
   RobotsResolver,
   FreshnessCache,
   FreshnessRecord,
@@ -33,20 +36,9 @@ export type {
 } from "./ports/corePorts.js";
 export { InMemoryFreshnessCache } from "./ports/nullPorts.js";
 export { InProcessJobQueue } from "./ports/inProcessJobQueue.js";
-export type {
-  ScrapeProcessor,
-  CrawlPageProcessor,
-  ExtractProcessor,
-  InProcessJobQueueProcessors,
-} from "./ports/inProcessJobQueue.js";
-export {
-  createScrapeProcessor,
-  createExtractProcessor,
-} from "./ports/jobProcessors.js";
-export type {
-  ScrapeProcessorDeps,
-  ExtractProcessorDeps,
-} from "./ports/jobProcessors.js";
+export type { InProcessJobQueueProcessors } from "./ports/inProcessJobQueue.js";
+export { createScrapeProcessor, createExtractProcessor } from "./ports/jobProcessors.js";
+export type { ScrapeProcessorDeps, ExtractProcessorDeps } from "./ports/jobProcessors.js";
 
 // --- types + pricing + budget ---
 export type { StorageState } from "./types.js";
@@ -182,18 +174,38 @@ export {
 export { createBraveSearchBackend } from "./search/searchBackend.js";
 
 // --- crypto layer ---
-export { type SessionCipher, type EncryptedSessionBlob } from "./auth/sessionCipherPort.js";
+export {
+  type SessionCipher,
+  type EncryptedSessionBlob,
+} from "./auth/sessionCipherPort.js";
 export { type KmsKeyProvider } from "./auth/kmsKeyProviderPort.js";
 export { EnvKeySessionCipher } from "./auth/envKeySessionCipher.js";
 export { LocalKeyProvider } from "./auth/localKeyProvider.js";
 export { VaultTransitKeyProvider } from "./auth/vaultTransitKeyProvider.js";
 
 // --- inspection ---
-export { replayRequest, type ReplayResult, type ReplayDeps, type ReplayedScrape } from "./inspection/replay.js";
-export { type RequestSnapshotBody, objectKeyForRequestSnapshot } from "./inspection/requestSnapshotStore.js";
-export { type SnapshotOperation, type RequestSnapshot } from "./inspection/snapshotTypes.js";
+export {
+  replayRequest,
+  type ReplayResult,
+  type ReplayDeps,
+  type ReplayedScrape,
+} from "./inspection/replay.js";
+export {
+  type RequestSnapshotBody,
+  objectKeyForRequestSnapshot,
+} from "./inspection/requestSnapshotStore.js";
+export {
+  type SnapshotOperation,
+  type RequestSnapshot,
+} from "./inspection/snapshotTypes.js";
 
 // --- benchmark ---
-export { type BenchmarkRunner, type BenchmarkCheckResult } from "./benchmark/benchmarkRunner.js";
-export { type BenchmarkFixture, BENCHMARK_FIXTURES } from "./benchmark/benchmarkFixtures.js";
+export {
+  type BenchmarkRunner,
+  type BenchmarkCheckResult,
+} from "./benchmark/benchmarkRunner.js";
+export {
+  type BenchmarkFixture,
+  BENCHMARK_FIXTURES,
+} from "./benchmark/benchmarkFixtures.js";
 export { BENCHMARK_RUNNERS } from "./benchmark/benchmarkRunners.js";

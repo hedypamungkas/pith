@@ -4,15 +4,11 @@ import type {
   JobQueue,
   ScrapeJobData,
   ExtractJobData,
+  ScrapeProcessor,
+  CrawlPageProcessor,
+  ExtractProcessor,
 } from "./corePorts.js";
 import type { CrawlPageJobData } from "../crawl/types.js";
-
-/** A scrape job processor — see {@link createScrapeProcessor}. */
-export type ScrapeProcessor = (data: ScrapeJobData) => Promise<ScrapeUrlResult>;
-/** A crawl-page job processor — see {@link createCrawlPageProcessor}. */
-export type CrawlPageProcessor = (data: CrawlPageJobData) => Promise<CrawlPageJobData[]>;
-/** An extract job processor — see {@link createExtractProcessor}. */
-export type ExtractProcessor = (data: ExtractJobData) => Promise<ExtractResult>;
 
 export interface InProcessJobQueueProcessors {
   scrape: ScrapeProcessor;

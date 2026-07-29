@@ -7,6 +7,7 @@ import type {
   DueUrl,
   JobQueue,
 } from "./corePorts.js";
+import { NotConfiguredError } from "../errors.js";
 import type { ScrapeAttempt } from "../pricing.js";
 import type {
   CreateCrawlInput,
@@ -153,11 +154,7 @@ class InMemoryCrawlStateStore implements CrawlStateStore {
     }
   }
 
-  async markPagePaused(
-    pageId: number,
-    requestId: string,
-    reason: string,
-  ): Promise<void> {
+  async markPagePaused(pageId: number, requestId: string, reason: string): Promise<void> {
     const p = this.pages.get(pageId);
     if (p) {
       p.status = "paused";
@@ -207,7 +204,10 @@ class InMemoryCrawlStateStore implements CrawlStateStore {
     const lock = new Promise<void>((resolve) => {
       release = resolve;
     });
-    this.insertLocks.set(crawlId, prev.then(() => lock));
+    this.insertLocks.set(
+      crawlId,
+      prev.then(() => lock),
+    );
     await prev;
     try {
       const existing = [...this.pages.values()].filter((p) => p.crawlId === crawlId);
@@ -332,9 +332,9 @@ class InMemoryContentStore {
  */
 function unconfiguredJobQueue(): JobQueue {
   const boom = (): never => {
-    throw new Error(
-      "JobQueue is not wired. createEngine() sets the in-process default; " +
-        "createNullPorts() returns this placeholder only because CorePorts requires a queue.",
+    throw new NotConfiguredError(
+      "ports.queue",
+      "createEngine() sets the in-process default; pass options.queue for a real runner.",
     );
   };
   return { addScrape: boom, addCrawlPage: boom, addExtract: boom };
@@ -369,7 +369,10 @@ export class InMemoryFreshnessCache implements FreshnessCache {
     const lock = new Promise<void>((resolve) => {
       release = resolve;
     });
-    this.locks.set(input.url, prev.then(() => lock));
+    this.locks.set(
+      input.url,
+      prev.then(() => lock),
+    );
     await prev;
     try {
       const existing = this.cache.get(input.url);

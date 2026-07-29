@@ -2,10 +2,7 @@ import { NotConfiguredError } from "./errors.js";
 import type { CorePorts } from "./ports/corePorts.js";
 import { createNullPorts } from "./ports/nullPorts.js";
 import { InProcessJobQueue } from "./ports/inProcessJobQueue.js";
-import {
-  createScrapeProcessor,
-  createExtractProcessor,
-} from "./ports/jobProcessors.js";
+import { createScrapeProcessor, createExtractProcessor } from "./ports/jobProcessors.js";
 import { centsForTier } from "./pricing.js";
 import {
   scrapeUrlCore,
@@ -27,7 +24,10 @@ import {
 } from "./crawl/pureCrawler.js";
 import type { StorageState } from "./types.js";
 import { composeFreshness } from "./freshness/composeFreshness.js";
-import { DEFAULT_TIER_CATALOG, type FreshnessTierCatalog } from "./freshness/freshnessTiers.js";
+import {
+  DEFAULT_TIER_CATALOG,
+  type FreshnessTierCatalog,
+} from "./freshness/freshnessTiers.js";
 
 export interface EngineOptions extends Partial<CorePorts> {
   /** Required for engine.extract(); extract throws NotConfiguredError without it. */
@@ -69,8 +69,9 @@ export interface Engine {
   ): Promise<ExtractResult>;
   /** Search via the configured SearchBackend. */
   search(query: string, opts?: SearchOptions): Promise<SearchResponse>;
-  /** Multi-page crawl orchestration (in-process, sequential). Returns a handle
-   *  whose wait() drains to a terminal CrawlStatus. */
+  /** Multi-page crawl orchestration (sequential by default; pass a concurrent
+   *  `queue` for parallelism). Returns a handle whose wait() drains to a
+   *  terminal CrawlStatus. */
   crawl(url: string, opts?: CrawlOptions): Promise<CrawlHandle>;
 }
 
@@ -92,12 +93,13 @@ export function createEngine(options: EngineOptions = {}): Engine {
 
   // --- job processors -------------------------------------------------------
   // One pure processor per job type. The in-process default queue runs them
-  // inline; a BullMQ worker (adapters-bullmq) runs them remotely. Built here so
-  // every backend runs identical logic.
+  // inline; a future remote worker (e.g. a BullMQ-backed adapter) runs them
+  // remotely. Built here so every backend runs identical logic.
 
-  // processScrape = scrapeUrlCore + best-effort cost audit (the old
-  // scrapeAndRecord). NoopCostRecorder by default — never throws; a freshness
-  // cache HIT skips the fetch and records nothing.
+  // processScrape = scrapeUrlCore + best-effort cost audit (the function
+  // formerly named scrapeAndRecord). NoopCostRecorder by default — never throws.
+  // (Freshness sits ABOVE the queued fetch: a cache HIT skips the job entirely,
+  // so processScrape never runs and records nothing — see queuedScrape below.)
   const processScrape = createScrapeProcessor({
     centsForTier,
     robotsResolver: ports.robotsResolver,
@@ -145,10 +147,8 @@ export function createEngine(options: EngineOptions = {}): Engine {
   // --- scrape ---------------------------------------------------------------
   // The actual fetch routes through the queue. Freshness (opt-in via
   // freshnessTier) sits ABOVE the queued fetch: a cache HIT skips the job.
-  const queuedScrape = (
-    url: string,
-    opts?: ScrapeUrlOptions,
-  ): Promise<ScrapeUrlResult> => ports.queue.addScrape({ url, options: opts ?? {} });
+  const queuedScrape = (url: string, opts?: ScrapeUrlOptions): Promise<ScrapeUrlResult> =>
+    ports.queue.addScrape({ url, options: opts ?? {} });
   const scrapeWithFreshness = composeFreshness(queuedScrape, {
     cache: ports.freshnessCache,
     tierCatalog,
@@ -202,10 +202,7 @@ export function createEngine(options: EngineOptions = {}): Engine {
     costRecorder: ports.costRecorder,
     queue: ports.queue,
   });
-  const crawl = async (
-    url: string,
-    opts: CrawlOptions = {},
-  ): Promise<CrawlHandle> => {
+  const crawl = async (url: string, opts: CrawlOptions = {}): Promise<CrawlHandle> => {
     const bounds: CrawlKickoffOptions = {
       maxDepth: opts.maxDepth ?? 2,
       maxPages: opts.maxPages ?? 50,

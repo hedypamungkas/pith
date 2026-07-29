@@ -1,28 +1,29 @@
-import { scrapeUrlCore, type ScrapeUrlResult } from "../scrape/scrapeUrlCore.js";
-import { extractPure, type ExtractResult } from "../extract/extractPure.js";
+import { scrapeUrlCore } from "../scrape/scrapeUrlCore.js";
+import type { ScrapeUrlResult } from "../scrape/scrapeUrlCore.js";
+import { extractPure } from "../extract/extractPure.js";
 import type { CentsForTier } from "../pricing.js";
 import type {
   CostRecorder,
   RobotsResolver,
   ScrapeJobData,
-  ExtractJobData,
+  ScrapeProcessor,
+  ExtractProcessor,
 } from "./corePorts.js";
 import type { ExtractionResult } from "../extract/extractionPort.js";
 
 /**
  * The scrape job processor — the work a `JobQueue.addScrape` job does, in one
- * place so the in-process default and a BullMQ worker run identical logic.
- * This is the engine's `scrapeAndRecord` (`engine.ts`): `scrapeUrlCore` + a
- * best-effort cost audit that never breaks a successful scrape.
+ * place so the in-process default and a future remote worker run identical
+ * logic. This is the engine's `processScrape` (the function formerly named
+ * `scrapeAndRecord`): `scrapeUrlCore` + a best-effort cost audit that never
+ * breaks a successful scrape.
  */
 export interface ScrapeProcessorDeps {
   centsForTier: CentsForTier;
   robotsResolver: RobotsResolver;
   costRecorder: CostRecorder;
 }
-export function createScrapeProcessor(
-  deps: ScrapeProcessorDeps,
-): (data: ScrapeJobData) => Promise<ScrapeUrlResult> {
+export function createScrapeProcessor(deps: ScrapeProcessorDeps): ScrapeProcessor {
   return async (data) => {
     const result = await scrapeUrlCore(data.url, data.options, {
       centsForTier: deps.centsForTier,
@@ -43,7 +44,7 @@ export function createScrapeProcessor(
  * inside the worker), NOT the engine's enqueuing `scrape` — so extract never
  * re-enqueues a scrape job (no queue recursion). Behavior-identical to today:
  * the engine's `extract` already calls `scrape` without `freshnessTier`, i.e.
- * `scrapeAndRecord`.
+ * the scrape processor (`processScrape`).
  */
 export interface ExtractProcessorDeps {
   /** The scrape processor — extract's fetch step, run inline. */
@@ -56,9 +57,7 @@ export interface ExtractProcessorDeps {
   ) => Promise<ExtractionResult>;
   centsForTier: CentsForTier;
 }
-export function createExtractProcessor(
-  deps: ExtractProcessorDeps,
-): (data: ExtractJobData) => Promise<ExtractResult> {
+export function createExtractProcessor(deps: ExtractProcessorDeps): ExtractProcessor {
   return (data) =>
     extractPure(
       {

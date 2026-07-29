@@ -26,16 +26,16 @@ The HTTP and MCP faces share the same pure request handlers as the SDK — one r
 
 Every host concern is an injectable port with an in-memory / no-op default. `createEngine()` with no arguments composes exactly these defaults via `createNullPorts()`; callers shallow-merge overrides (`createEngine({ freshnessCache: myRedisCache, clock: fakeClock })`).
 
-| Port | Responsibility | Null default (`createNullPorts`) | Real adapter (optional) |
-|---|---|---|---|
-| `costRecorder` | per-attempt cost metering; `getCostCentsForRequest` for the MCP overlay | `NoopCostRecorder` (records nothing) | Postgres `cost_events` ledger |
-| `snapshotStore` | request inspection / replay snapshots | `InMemorySnapshotStore` | object store |
-| `crawlStateStore` | crawl jobs/pages state machine; `maxPages` + dedup under a serialized section | `InMemoryCrawlStateStore` (full state machine + mutex) | Postgres `crawl_jobs`/`crawl_pages` |
-| `contentStore` | page-content blobs | `InMemoryContentStore` | MinIO/S3 |
-| `queue` | scrape/crawl-page/extract jobs | `InProcessJobDriver` (runs in-process) | BullMQ |
-| `robotsResolver` | `robots.txt` compliance | `AllowAllRobotsResolver` (zero-network) | `createRobotsResolver()` (real, spec-compliant fail-open) |
-| `freshnessCache` | stale-while-revalidate scrape cache; monotonic tier tightening | `InMemoryFreshnessCache` (full tightening mutex) | Postgres metadata + object-store body |
-| `clock` | `now`, for testable time math | `() => new Date()` | — |
+| Port              | Responsibility                                                                | Null default (`createNullPorts`)                                   | Real adapter (optional)                                   |
+| ----------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------- |
+| `costRecorder`    | per-attempt cost metering; `getCostCentsForRequest` for the MCP overlay       | `NoopCostRecorder` (records nothing)                               | Postgres `cost_events` ledger                             |
+| `snapshotStore`   | request inspection / replay snapshots                                         | `InMemorySnapshotStore`                                            | object store                                              |
+| `crawlStateStore` | crawl jobs/pages state machine; `maxPages` + dedup under a serialized section | `InMemoryCrawlStateStore` (full state machine + mutex)             | Postgres `crawl_jobs`/`crawl_pages`                       |
+| `contentStore`    | page-content blobs                                                            | `InMemoryContentStore`                                             | MinIO/S3                                                  |
+| `queue`           | scrape/crawl-page/extract jobs                                                | throwing placeholder (`createEngine` supplies `InProcessJobQueue`) | BullMQ                                                    |
+| `robotsResolver`  | `robots.txt` compliance                                                       | `AllowAllRobotsResolver` (zero-network)                            | `createRobotsResolver()` (real, spec-compliant fail-open) |
+| `freshnessCache`  | stale-while-revalidate scrape cache; monotonic tier tightening                | `InMemoryFreshnessCache` (full tightening mutex)                   | Postgres metadata + object-store body                     |
+| `clock`           | `now`, for testable time math                                                 | `() => new Date()`                                                 | —                                                         |
 
 The engine reads ports only through this interface — a real backend never touches engine logic. Backends that need a job runner, persistence, or a KMS land as separate adapter packages, not in core.
 

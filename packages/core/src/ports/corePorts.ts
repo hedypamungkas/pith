@@ -62,7 +62,9 @@ export interface CrawlStateStore {
 
 export interface ContentStore {
   put(key: string, body: Uint8Array | string): Promise<void> | void;
-  get(key: string): Promise<Uint8Array | string | undefined> | Uint8Array | string | undefined;
+  get(
+    key: string,
+  ): Promise<Uint8Array | string | undefined> | Uint8Array | string | undefined;
   list(prefix: string): Promise<string[]> | string[];
   delete(key: string): Promise<void> | void;
 }
@@ -84,15 +86,16 @@ export interface ExtractJobData {
 /**
  * The job-queue port — the seam that lets scrape / crawl-page / extract work
  * run somewhere other than the calling engine: in-process (the default,
- * {@link InProcessJobQueue}) or on a real runner (`@use-pith/adapters-bullmq`
- * over Redis). Each `addX` drives ONE job to completion and returns its result;
- * the engine's crawl drain loop calls `addCrawlPage` per page, and the public
- * `scrape`/`extract` routes go through `addScrape`/`addExtract`.
+ * {@link InProcessJobQueue}) or on a real runner (a future BullMQ-backed
+ * adapter over Redis). Each `addX` drives ONE job to completion and returns its
+ * result; the engine's crawl drain loop calls `addCrawlPage` per page, and the
+ * public `scrape`/`extract` routes go through `addScrape`/`addExtract`.
  *
- * `concurrency` is the crawl drain loop's frontier size (max crawl-page jobs in
- * flight). `undefined`/1 = sequential (the in-process default — deterministic);
- * a real runner sets it higher for parallelism. It does not affect scrape/extract
- * (single awaits).
+ * `concurrency` is the crawl drain loop's batch size — how many crawl-page jobs
+ * run concurrently per batch (the `pending` frontier itself is unbounded).
+ * `undefined`/1 = sequential (the in-process default — deterministic); a real
+ * runner sets it higher for parallelism. It governs only the crawl drain;
+ * scrape/extract are single awaits and ignore it.
  */
 export interface JobQueue {
   addScrape(data: ScrapeJobData): Promise<ScrapeUrlResult>;
@@ -100,6 +103,16 @@ export interface JobQueue {
   addExtract(data: ExtractJobData): Promise<ExtractResult>;
   readonly concurrency?: number;
 }
+
+/** A scrape job processor — the work a `JobQueue.addScrape` job does. The
+ *  canonical home for the processor signatures is the port layer so the default
+ *  queue, the processor factories, and a future remote worker all share one
+ *  source of truth. See {@link InProcessJobQueue} and `createScrapeProcessor`. */
+export type ScrapeProcessor = (data: ScrapeJobData) => Promise<ScrapeUrlResult>;
+/** A crawl-page job processor — returns the child jobs it discovered. */
+export type CrawlPageProcessor = (data: CrawlPageJobData) => Promise<CrawlPageJobData[]>;
+/** An extract job processor. */
+export type ExtractProcessor = (data: ExtractJobData) => Promise<ExtractResult>;
 
 export interface RobotsResolver {
   isAllowed(url: string): Promise<boolean> | boolean;

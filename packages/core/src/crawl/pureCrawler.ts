@@ -12,15 +12,12 @@ import type {
   SnapshotStore,
   JobQueue,
 } from "../ports/corePorts.js";
-import type {
-  CrawlBounds,
-  CrawlPageJobData,
-  CrawlStatus,
-} from "./types.js";
+import type { CrawlBounds, CrawlPageJobData, CrawlStatus } from "./types.js";
 import type { StorageState } from "../types.js";
 
 /** The fetch + state + storage deps a crawl-page processor needs. Shared by the
- *  engine (which builds the in-process default) and a BullMQ worker (PR2). */
+ *  engine (which builds the in-process default) and a future remote worker
+ *  (e.g. a BullMQ-backed adapter). */
 export interface CrawlProcessorDeps {
   /** The fetch+content step (scrapeUrlCore, wired without cost recording — the
    *  crawler records cost itself). */
@@ -76,7 +73,8 @@ type ProcessOutcome = CrawlPageJobData[];
 export function createCrawlPageProcessor(
   deps: CrawlProcessorDeps,
 ): (data: CrawlPageJobData) => Promise<ProcessOutcome> {
-  const { scrape, stateStore, contentStore, snapshotStore, costRecorder, preFlight } = deps;
+  const { scrape, stateStore, contentStore, snapshotStore, costRecorder, preFlight } =
+    deps;
 
   async function enqueueDiscoveredLinks(
     data: CrawlPageJobData,
@@ -189,12 +187,27 @@ export function createCrawlPageProcessor(
 
 /**
  * The crawl orchestration, decoupled from BullMQ/Redis/Postgres. The drain loop
- * drives `queue.addCrawlPage` one frontier at a time — up to `queue.concurrency`
- * pages in flight per batch — and pushes the discovered children back. The
- * default in-process queue runs the processor inline, so at `concurrency` 1
- * (undefined) this is the original deterministic sequential crawl; a real runner
- * (BullMQ) sets `concurrency` for parallelism and runs each job on a worker.
+ * drives `queue.addCrawlPage` one batch at a time — up to `queue.concurrency`
+ * pages processed concurrently per batch (the `pending` frontier itself is
+ * unbounded) — and pushes the discovered children back. The default in-process
+ * queue runs the processor inline, so at `concurrency` 1 (undefined) this is the
+ * original deterministic sequential crawl; a real runner sets `concurrency`
+ * higher for parallelism and runs each job on a worker.
+ *
+ * The batch is drained with `Promise.allSettled` (not `Promise.all`): a single
+ * page rejecting a non-terminal error must not abort the batch mid-flight and
+ * orphan its siblings (their discovered children would silently vanish and their
+ * rejections would go unhandled). At `concurrency` 1 this is identical to the old
+ * sequential `await processPage` — a rejection still rejects `wait()`.
  */
+
+/** Resolve the crawl drain batch size: `undefined`/0/negative/NaN/fractional → 1
+ *  (sequential), so a misconfigured `concurrency` can't hang the loop on
+ *  `pending.splice(0, 0)` forever. */
+function drainBatchSize(concurrency: number | undefined): number {
+  const n = Math.floor(concurrency ?? 1);
+  return n >= 1 ? n : 1;
+}
 export function pureCrawler(deps: PureCrawlerDeps) {
   const { stateStore, queue } = deps;
   const processPage = createCrawlPageProcessor(deps);
@@ -232,14 +245,29 @@ export function pureCrawler(deps: PureCrawlerDeps) {
       crawlId,
       status: () => stateStore.getCrawlStatus(crawlId),
       wait: async (): Promise<CrawlStatus> => {
-        const n = queue.concurrency ?? 1;
+        const n = drainBatchSize(queue.concurrency);
         const pending: CrawlPageJobData[] = [rootJob];
         while (pending.length > 0) {
           const batch = pending.splice(0, n);
-          const children = (
-            await Promise.all(batch.map((data) => queue.addCrawlPage(data)))
-          ).flat();
-          pending.push(...children);
+          // Drain the whole batch before propagating any failure: a rejecting
+          // page must not orphan its in-flight siblings (silent child loss /
+          // unhandled rejections). Terminal page failures are caught inside the
+          // processor and return [], so they never reject here; an unexpected
+          // error rejects `wait()` — identical to the old sequential loop at n=1.
+          const settled = await Promise.allSettled(
+            batch.map((data) => queue.addCrawlPage(data)),
+          );
+          let failure: unknown;
+          let hasFailure = false;
+          for (const result of settled) {
+            if (result.status === "fulfilled") {
+              pending.push(...result.value);
+            } else if (!hasFailure) {
+              failure = result.reason;
+              hasFailure = true;
+            }
+          }
+          if (hasFailure) throw failure;
         }
         const status = await stateStore.getCrawlStatus(crawlId);
         if (!status) throw new Error(`Crawl ${crawlId} vanished mid-run`);
