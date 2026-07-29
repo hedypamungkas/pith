@@ -26,7 +26,7 @@ jobs:
       MINIO_BUCKET: pith-test
       REDIS_URL: redis://127.0.0.1:55379
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
         with:
           node-version: 20
