@@ -22,6 +22,8 @@ export type {
   CrawlStateStore,
   ContentStore,
   JobQueue,
+  ScrapeJobData,
+  ExtractJobData,
   RobotsResolver,
   FreshnessCache,
   FreshnessRecord,
@@ -30,6 +32,21 @@ export type {
   Clock,
 } from "./ports/corePorts.js";
 export { InMemoryFreshnessCache } from "./ports/nullPorts.js";
+export { InProcessJobQueue } from "./ports/inProcessJobQueue.js";
+export type {
+  ScrapeProcessor,
+  CrawlPageProcessor,
+  ExtractProcessor,
+  InProcessJobQueueProcessors,
+} from "./ports/inProcessJobQueue.js";
+export {
+  createScrapeProcessor,
+  createExtractProcessor,
+} from "./ports/jobProcessors.js";
+export type {
+  ScrapeProcessorDeps,
+  ExtractProcessorDeps,
+} from "./ports/jobProcessors.js";
 
 // --- types + pricing + budget ---
 export type { StorageState } from "./types.js";
@@ -78,7 +95,13 @@ export {
 } from "./freshness/composeFreshness.js";
 
 // --- crawl ---
-export { pureCrawler, type CrawlHandle, type CrawlKickoffOptions } from "./crawl/pureCrawler.js";
+export {
+  pureCrawler,
+  createCrawlPageProcessor,
+  type CrawlHandle,
+  type CrawlKickoffOptions,
+  type CrawlProcessorDeps,
+} from "./crawl/pureCrawler.js";
 export {
   objectKeyForCrawlPage,
   parseCrawlPageObjectKey,

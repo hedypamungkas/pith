@@ -13,9 +13,11 @@
  * the names and responsibilities below are stable.
  */
 import type { ScrapeAttempt } from "../pricing.js";
-import type { ScrapeUrlResult } from "../scrape/scrapeUrlCore.js";
+import type { ScrapeUrlResult, ScrapeUrlOptions } from "../scrape/scrapeUrlCore.js";
+import type { ExtractResult } from "../extract/extractPure.js";
 import type {
   CreateCrawlInput,
+  CrawlPageJobData,
   CrawlStatus,
   DiscoveredPage,
   PageCounts,
@@ -65,11 +67,38 @@ export interface ContentStore {
   delete(key: string): Promise<void> | void;
 }
 
+/** Payload for {@link JobQueue.addScrape} — the per-job unit of scrape work. */
+export interface ScrapeJobData {
+  url: string;
+  options: ScrapeUrlOptions;
+}
+
+/** Payload for {@link JobQueue.addExtract} — the per-job unit of extract work. */
+export interface ExtractJobData {
+  url: string;
+  schema: Record<string, unknown>;
+  budgetCents?: number;
+  ignoreRobotsTxt?: boolean;
+}
+
+/**
+ * The job-queue port — the seam that lets scrape / crawl-page / extract work
+ * run somewhere other than the calling engine: in-process (the default,
+ * {@link InProcessJobQueue}) or on a real runner (`@use-pith/adapters-bullmq`
+ * over Redis). Each `addX` drives ONE job to completion and returns its result;
+ * the engine's crawl drain loop calls `addCrawlPage` per page, and the public
+ * `scrape`/`extract` routes go through `addScrape`/`addExtract`.
+ *
+ * `concurrency` is the crawl drain loop's frontier size (max crawl-page jobs in
+ * flight). `undefined`/1 = sequential (the in-process default — deterministic);
+ * a real runner sets it higher for parallelism. It does not affect scrape/extract
+ * (single awaits).
+ */
 export interface JobQueue {
-  addScrape(payload: unknown): Promise<unknown> | unknown;
-  addCrawlPage(payload: unknown): Promise<unknown> | unknown;
-  addExtract(payload: unknown): Promise<unknown> | unknown;
-  wait(jobId: string): Promise<unknown> | unknown;
+  addScrape(data: ScrapeJobData): Promise<ScrapeUrlResult>;
+  addCrawlPage(data: CrawlPageJobData): Promise<CrawlPageJobData[]>;
+  addExtract(data: ExtractJobData): Promise<ExtractResult>;
+  readonly concurrency?: number;
 }
 
 export interface RobotsResolver {

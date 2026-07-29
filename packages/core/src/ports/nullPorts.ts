@@ -5,6 +5,7 @@ import type {
   FreshnessRecord,
   RecordFreshnessInput,
   DueUrl,
+  JobQueue,
 } from "./corePorts.js";
 import type { ScrapeAttempt } from "../pricing.js";
 import type {
@@ -321,19 +322,22 @@ class InMemoryContentStore {
   }
 }
 
-class InProcessJobDriver {
-  addScrape(payload: unknown): unknown {
-    return payload;
-  }
-  addCrawlPage(payload: unknown): unknown {
-    return payload;
-  }
-  addExtract(payload: unknown): unknown {
-    return payload;
-  }
-  wait(payload: unknown): unknown {
-    return payload;
-  }
+/**
+ * Placeholder {@link JobQueue} for {@link createNullPorts}. `CorePorts` requires
+ * a queue, but the real default (the inline {@link InProcessJobQueue}) needs the
+ * engine's processors, which `createNullPorts` doesn't have — so `createEngine`
+ * always overrides `ports.queue` (with `options.queue` or an
+ * `InProcessJobQueue`). This stub only exists to satisfy the type and throws
+ * clearly if something reaches it before the engine wires the real one.
+ */
+function unconfiguredJobQueue(): JobQueue {
+  const boom = (): never => {
+    throw new Error(
+      "JobQueue is not wired. createEngine() sets the in-process default; " +
+        "createNullPorts() returns this placeholder only because CorePorts requires a queue.",
+    );
+  };
+  return { addScrape: boom, addCrawlPage: boom, addExtract: boom };
 }
 
 class AllowAllRobotsResolver {
@@ -411,7 +415,7 @@ export function createNullPorts(): CorePorts {
     snapshotStore: new InMemorySnapshotStore(),
     crawlStateStore: new InMemoryCrawlStateStore(),
     contentStore: new InMemoryContentStore(),
-    queue: new InProcessJobDriver(),
+    queue: unconfiguredJobQueue(),
     robotsResolver: new AllowAllRobotsResolver(),
     freshnessCache: new InMemoryFreshnessCache(),
     clock: () => new Date(),
