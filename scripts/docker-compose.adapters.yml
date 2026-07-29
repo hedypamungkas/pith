@@ -11,6 +11,7 @@
 #   PG_DATABASE_URL=postgres://pith:pith@127.0.0.1:55432/pith_test \
 #   MINIO_ENDPOINT=127.0.0.1 MINIO_PORT=9100 MINIO_ACCESS_KEY=minioadmin \
 #   MINIO_SECRET_KEY=minioadmin MINIO_BUCKET=pith-test \
+#   REDIS_URL=redis://127.0.0.1:55379 \
 #     npm run test:integration:real
 services:
   postgres:
@@ -39,3 +40,16 @@ services:
     ports:
       - "9100:9000"
       - "9101:9001"
+
+  # Redis for the @use-pith/adapters-bullmq integration tests (real BullMQ
+  # enqueue → worker → waitUntilFinished round-trips, worker concurrency, and the
+  # engine + queue crawl E2E). The unit tests are pure helpers (no container).
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "55379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 20

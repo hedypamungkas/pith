@@ -24,6 +24,7 @@ jobs:
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
       MINIO_BUCKET: pith-test
+      REDIS_URL: redis://127.0.0.1:55379
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -39,6 +40,7 @@ jobs:
       - run: docker compose -f scripts/docker-compose.adapters.yml up -d --wait
       - run: npx vitest run --project integration-real packages/adapters-pg
       - run: npx vitest run --project integration-real packages/adapters-minio
+      - run: npx vitest run --project integration-real packages/adapters-bullmq
       - name: Tear down services
         if: always()
         run: docker compose -f scripts/docker-compose.adapters.yml down

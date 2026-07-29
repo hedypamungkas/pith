@@ -1,0 +1,65 @@
+{
+  "name": "@use-pith/adapters-bullmq",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Pith — BullMQ/Redis adapter for the CorePorts JobQueue (BullMqJobQueue + runWorkers). Distributed scrape/crawl/extract job runner for @use-pith/core.",
+  "license": "Apache-2.0",
+  "author": "The Pith Authors",
+  "homepage": "https://github.com/hedypamungkas/pith#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hedypamungkas/pith.git",
+    "directory": "packages/adapters-bullmq"
+  },
+  "bugs": {
+    "url": "https://github.com/hedypamungkas/pith/issues"
+  },
+  "keywords": [
+    "pith",
+    "bullmq",
+    "redis",
+    "queue",
+    "job",
+    "worker",
+    "adapter",
+    "ports-and-adapters",
+    "crawl",
+    "distributed"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true,
+    "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "bullmq": "^5.81.2",
+    "ioredis": "^5.11.1"
+  },
+  "peerDependencies": {
+    "@use-pith/core": "^0.1.0"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.18.0"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "prepublishOnly": "npm run build"
+  }
+}
