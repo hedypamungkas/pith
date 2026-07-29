@@ -13,9 +13,11 @@
  * the names and responsibilities below are stable.
  */
 import type { ScrapeAttempt } from "../pricing.js";
-import type { ScrapeUrlResult } from "../scrape/scrapeUrlCore.js";
+import type { ScrapeUrlResult, ScrapeUrlOptions } from "../scrape/scrapeUrlCore.js";
+import type { ExtractResult } from "../extract/extractPure.js";
 import type {
   CreateCrawlInput,
+  CrawlPageJobData,
   CrawlStatus,
   DiscoveredPage,
   PageCounts,
@@ -60,17 +62,57 @@ export interface CrawlStateStore {
 
 export interface ContentStore {
   put(key: string, body: Uint8Array | string): Promise<void> | void;
-  get(key: string): Promise<Uint8Array | string | undefined> | Uint8Array | string | undefined;
+  get(
+    key: string,
+  ): Promise<Uint8Array | string | undefined> | Uint8Array | string | undefined;
   list(prefix: string): Promise<string[]> | string[];
   delete(key: string): Promise<void> | void;
 }
 
-export interface JobQueue {
-  addScrape(payload: unknown): Promise<unknown> | unknown;
-  addCrawlPage(payload: unknown): Promise<unknown> | unknown;
-  addExtract(payload: unknown): Promise<unknown> | unknown;
-  wait(jobId: string): Promise<unknown> | unknown;
+/** Payload for {@link JobQueue.addScrape} — the per-job unit of scrape work. */
+export interface ScrapeJobData {
+  url: string;
+  options: ScrapeUrlOptions;
 }
+
+/** Payload for {@link JobQueue.addExtract} — the per-job unit of extract work. */
+export interface ExtractJobData {
+  url: string;
+  schema: Record<string, unknown>;
+  budgetCents?: number;
+  ignoreRobotsTxt?: boolean;
+}
+
+/**
+ * The job-queue port — the seam that lets scrape / crawl-page / extract work
+ * run somewhere other than the calling engine: in-process (the default,
+ * {@link InProcessJobQueue}) or on a real runner (a future BullMQ-backed
+ * adapter over Redis). Each `addX` drives ONE job to completion and returns its
+ * result; the engine's crawl drain loop calls `addCrawlPage` per page, and the
+ * public `scrape`/`extract` routes go through `addScrape`/`addExtract`.
+ *
+ * `concurrency` is the crawl drain loop's batch size — how many crawl-page jobs
+ * run concurrently per batch (the `pending` frontier itself is unbounded).
+ * `undefined`/1 = sequential (the in-process default — deterministic); a real
+ * runner sets it higher for parallelism. It governs only the crawl drain;
+ * scrape/extract are single awaits and ignore it.
+ */
+export interface JobQueue {
+  addScrape(data: ScrapeJobData): Promise<ScrapeUrlResult>;
+  addCrawlPage(data: CrawlPageJobData): Promise<CrawlPageJobData[]>;
+  addExtract(data: ExtractJobData): Promise<ExtractResult>;
+  readonly concurrency?: number;
+}
+
+/** A scrape job processor — the work a `JobQueue.addScrape` job does. The
+ *  canonical home for the processor signatures is the port layer so the default
+ *  queue, the processor factories, and a future remote worker all share one
+ *  source of truth. See {@link InProcessJobQueue} and `createScrapeProcessor`. */
+export type ScrapeProcessor = (data: ScrapeJobData) => Promise<ScrapeUrlResult>;
+/** A crawl-page job processor — returns the child jobs it discovered. */
+export type CrawlPageProcessor = (data: CrawlPageJobData) => Promise<CrawlPageJobData[]>;
+/** An extract job processor. */
+export type ExtractProcessor = (data: ExtractJobData) => Promise<ExtractResult>;
 
 export interface RobotsResolver {
   isAllowed(url: string): Promise<boolean> | boolean;

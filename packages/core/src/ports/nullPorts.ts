@@ -5,7 +5,9 @@ import type {
   FreshnessRecord,
   RecordFreshnessInput,
   DueUrl,
+  JobQueue,
 } from "./corePorts.js";
+import { NotConfiguredError } from "../errors.js";
 import type { ScrapeAttempt } from "../pricing.js";
 import type {
   CreateCrawlInput,
@@ -152,11 +154,7 @@ class InMemoryCrawlStateStore implements CrawlStateStore {
     }
   }
 
-  async markPagePaused(
-    pageId: number,
-    requestId: string,
-    reason: string,
-  ): Promise<void> {
+  async markPagePaused(pageId: number, requestId: string, reason: string): Promise<void> {
     const p = this.pages.get(pageId);
     if (p) {
       p.status = "paused";
@@ -206,7 +204,10 @@ class InMemoryCrawlStateStore implements CrawlStateStore {
     const lock = new Promise<void>((resolve) => {
       release = resolve;
     });
-    this.insertLocks.set(crawlId, prev.then(() => lock));
+    this.insertLocks.set(
+      crawlId,
+      prev.then(() => lock),
+    );
     await prev;
     try {
       const existing = [...this.pages.values()].filter((p) => p.crawlId === crawlId);
@@ -321,19 +322,22 @@ class InMemoryContentStore {
   }
 }
 
-class InProcessJobDriver {
-  addScrape(payload: unknown): unknown {
-    return payload;
-  }
-  addCrawlPage(payload: unknown): unknown {
-    return payload;
-  }
-  addExtract(payload: unknown): unknown {
-    return payload;
-  }
-  wait(payload: unknown): unknown {
-    return payload;
-  }
+/**
+ * Placeholder {@link JobQueue} for {@link createNullPorts}. `CorePorts` requires
+ * a queue, but the real default (the inline {@link InProcessJobQueue}) needs the
+ * engine's processors, which `createNullPorts` doesn't have — so `createEngine`
+ * always overrides `ports.queue` (with `options.queue` or an
+ * `InProcessJobQueue`). This stub only exists to satisfy the type and throws
+ * clearly if something reaches it before the engine wires the real one.
+ */
+function unconfiguredJobQueue(): JobQueue {
+  const boom = (): never => {
+    throw new NotConfiguredError(
+      "ports.queue",
+      "createEngine() sets the in-process default; pass options.queue for a real runner.",
+    );
+  };
+  return { addScrape: boom, addCrawlPage: boom, addExtract: boom };
 }
 
 class AllowAllRobotsResolver {
@@ -365,7 +369,10 @@ export class InMemoryFreshnessCache implements FreshnessCache {
     const lock = new Promise<void>((resolve) => {
       release = resolve;
     });
-    this.locks.set(input.url, prev.then(() => lock));
+    this.locks.set(
+      input.url,
+      prev.then(() => lock),
+    );
     await prev;
     try {
       const existing = this.cache.get(input.url);
@@ -411,7 +418,7 @@ export function createNullPorts(): CorePorts {
     snapshotStore: new InMemorySnapshotStore(),
     crawlStateStore: new InMemoryCrawlStateStore(),
     contentStore: new InMemoryContentStore(),
-    queue: new InProcessJobDriver(),
+    queue: unconfiguredJobQueue(),
     robotsResolver: new AllowAllRobotsResolver(),
     freshnessCache: new InMemoryFreshnessCache(),
     clock: () => new Date(),

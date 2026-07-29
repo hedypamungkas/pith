@@ -1,6 +1,15 @@
 import { describe, it, expect, vi } from "vitest";
 import { pureCrawler } from "../../src/crawl/pureCrawler.js";
 import { createNullPorts } from "../../src/ports/nullPorts.js";
+import type { JobQueue } from "../../src/ports/corePorts.js";
+
+// The unit tests drive `processPage` directly; the drain loop (which uses the
+// queue) isn't exercised here, so a stub satisfies the required `queue` dep.
+const stubQueue = {
+  addScrape: vi.fn(),
+  addCrawlPage: vi.fn(),
+  addExtract: vi.fn(),
+} as unknown as JobQueue;
 
 const data = {
   crawlId: "c1",
@@ -37,6 +46,7 @@ describe("pureCrawler.processPage", () => {
       scrape: scrapeSpy,
       stateStore: ports.crawlStateStore,
       contentStore: ports.contentStore,
+      queue: stubQueue,
     });
     const children = await processPage(data);
     expect(children).toEqual([]);
@@ -63,6 +73,7 @@ describe("pureCrawler.processPage", () => {
       contentStore: ports.contentStore,
       snapshotStore: ports.snapshotStore,
       costRecorder: ports.costRecorder,
+      queue: stubQueue,
     });
     const children = await processPage(data);
 
@@ -86,6 +97,7 @@ describe("pureCrawler.processPage", () => {
       scrape: scrapeSpy,
       stateStore: ports.crawlStateStore,
       contentStore: ports.contentStore,
+      queue: stubQueue,
     });
     const children = await processPage(data);
     expect(children).toEqual([]);

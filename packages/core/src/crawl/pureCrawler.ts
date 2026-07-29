@@ -10,15 +10,15 @@ import type {
   ContentStore,
   CostRecorder,
   SnapshotStore,
+  JobQueue,
 } from "../ports/corePorts.js";
-import type {
-  CrawlBounds,
-  CrawlPageJobData,
-  CrawlStatus,
-} from "./types.js";
+import type { CrawlBounds, CrawlPageJobData, CrawlStatus } from "./types.js";
 import type { StorageState } from "../types.js";
 
-export interface PureCrawlerDeps {
+/** The fetch + state + storage deps a crawl-page processor needs. Shared by the
+ *  engine (which builds the in-process default) and a future remote worker
+ *  (e.g. a BullMQ-backed adapter). */
+export interface CrawlProcessorDeps {
   /** The fetch+content step (scrapeUrlCore, wired without cost recording — the
    *  crawler records cost itself). */
   scrape: (
@@ -32,6 +32,11 @@ export interface PureCrawlerDeps {
   /** Per-page billing/rate/auth gate. Return an error string to fail the page,
    *  or null to allow. Default: allow all (the OSS spine has no billing). */
   preFlight?: (data: CrawlPageJobData) => Promise<string | null>;
+}
+
+/** {@link CrawlProcessorDeps} plus the queue the drain loop drives. */
+export interface PureCrawlerDeps extends CrawlProcessorDeps {
+  queue: JobQueue;
 }
 
 export interface CrawlKickoffOptions extends CrawlBounds {
@@ -52,21 +57,24 @@ export interface CrawlHandle {
 type ProcessOutcome = CrawlPageJobData[];
 
 /**
- * The crawl orchestration, decoupled from BullMQ/Redis/Postgres. The per-page
- * processor mirrors the source project's crawlPageWorker: idempotency gate →
- * markCrawlRunning → optional preFlight → incrementPageAttempt → scrape → record
- * cost → write content + snapshot → insert discovered children (BEFORE marking
- * the parent success, so a concurrent finalizer can't see zero pending) →
- * markPageSuccess → finalizeCrawlIfDone. A `ScrapeAllTiersFailedError` is a
- * terminal page failure; other throws propagate.
+ * Build the per-page crawl processor — the single unit of work the in-process
+ * queue runs inline and a BullMQ worker runs remotely. It mirrors the source
+ * project's crawlPageWorker: idempotency gate → markCrawlRunning → optional
+ * preFlight → incrementPageAttempt → scrape → record cost → write content +
+ * snapshot → insert discovered children (BEFORE marking the parent success, so
+ * a concurrent finalizer can't see zero pending) → markPageSuccess →
+ * finalizeCrawlIfDone. A `ScrapeAllTiersFailedError` is a terminal page failure;
+ * other throws propagate.
  *
- * The driver is a sequential in-process work queue (deterministic, no
- * concurrency — prod gets concurrency from BullMQ). Resume / redelivery
- * idempotency is the getPageStatus gate: a re-driven success/failed page is a
- * no-op, never re-scraped or re-billed.
+ * Resume / redelivery idempotency is the getPageStatus gate: a re-driven
+ * success/failed page is a no-op, never re-scraped or re-billed — so a crashed
+ * worker that already finalized a page is safe to re-drive.
  */
-export function pureCrawler(deps: PureCrawlerDeps) {
-  const { scrape, stateStore, contentStore, snapshotStore, costRecorder, preFlight } = deps;
+export function createCrawlPageProcessor(
+  deps: CrawlProcessorDeps,
+): (data: CrawlPageJobData) => Promise<ProcessOutcome> {
+  const { scrape, stateStore, contentStore, snapshotStore, costRecorder, preFlight } =
+    deps;
 
   async function enqueueDiscoveredLinks(
     data: CrawlPageJobData,
@@ -174,6 +182,36 @@ export function pureCrawler(deps: PureCrawlerDeps) {
     return children;
   }
 
+  return processPage;
+}
+
+/**
+ * The crawl orchestration, decoupled from BullMQ/Redis/Postgres. The drain loop
+ * drives `queue.addCrawlPage` one batch at a time — up to `queue.concurrency`
+ * pages processed concurrently per batch (the `pending` frontier itself is
+ * unbounded) — and pushes the discovered children back. The default in-process
+ * queue runs the processor inline, so at `concurrency` 1 (undefined) this is the
+ * original deterministic sequential crawl; a real runner sets `concurrency`
+ * higher for parallelism and runs each job on a worker.
+ *
+ * The batch is drained with `Promise.allSettled` (not `Promise.all`): a single
+ * page rejecting a non-terminal error must not abort the batch mid-flight and
+ * orphan its siblings (their discovered children would silently vanish and their
+ * rejections would go unhandled). At `concurrency` 1 this is identical to the old
+ * sequential `await processPage` — a rejection still rejects `wait()`.
+ */
+
+/** Resolve the crawl drain batch size: `undefined`/0/negative/NaN/fractional → 1
+ *  (sequential), so a misconfigured `concurrency` can't hang the loop on
+ *  `pending.splice(0, 0)` forever. */
+function drainBatchSize(concurrency: number | undefined): number {
+  const n = Math.floor(concurrency ?? 1);
+  return n >= 1 ? n : 1;
+}
+export function pureCrawler(deps: PureCrawlerDeps) {
+  const { stateStore, queue } = deps;
+  const processPage = createCrawlPageProcessor(deps);
+
   async function crawl(rootUrl: string, opts: CrawlKickoffOptions): Promise<CrawlHandle> {
     const crawlId = randomUUID();
     const rootPageId = await stateStore.createCrawl({
@@ -188,31 +226,48 @@ export function pureCrawler(deps: PureCrawlerDeps) {
       excludePatterns: opts.excludePatterns,
       ignoreRobotsTxt: opts.ignoreRobotsTxt,
     });
-    const queue: CrawlPageJobData[] = [
-      {
-        crawlId,
-        apiKeyId: opts.apiKeyId ?? 0,
-        authSessionId: opts.authSessionId,
-        pageId: rootPageId,
-        url: rootUrl,
-        depth: 0,
-        maxDepth: opts.maxDepth,
-        maxPages: opts.maxPages,
-        sameDomainOnly: opts.sameDomainOnly,
-        includePatterns: opts.includePatterns,
-        excludePatterns: opts.excludePatterns,
-        ignoreRobotsTxt: opts.ignoreRobotsTxt,
-        storageState: opts.storageState,
-      },
-    ];
+    const rootJob: CrawlPageJobData = {
+      crawlId,
+      apiKeyId: opts.apiKeyId ?? 0,
+      authSessionId: opts.authSessionId,
+      pageId: rootPageId,
+      url: rootUrl,
+      depth: 0,
+      maxDepth: opts.maxDepth,
+      maxPages: opts.maxPages,
+      sameDomainOnly: opts.sameDomainOnly,
+      includePatterns: opts.includePatterns,
+      excludePatterns: opts.excludePatterns,
+      ignoreRobotsTxt: opts.ignoreRobotsTxt,
+      storageState: opts.storageState,
+    };
     return {
       crawlId,
       status: () => stateStore.getCrawlStatus(crawlId),
       wait: async (): Promise<CrawlStatus> => {
-        while (queue.length > 0) {
-          const data = queue.shift()!;
-          const children = await processPage(data);
-          queue.push(...children);
+        const n = drainBatchSize(queue.concurrency);
+        const pending: CrawlPageJobData[] = [rootJob];
+        while (pending.length > 0) {
+          const batch = pending.splice(0, n);
+          // Drain the whole batch before propagating any failure: a rejecting
+          // page must not orphan its in-flight siblings (silent child loss /
+          // unhandled rejections). Terminal page failures are caught inside the
+          // processor and return [], so they never reject here; an unexpected
+          // error rejects `wait()` — identical to the old sequential loop at n=1.
+          const settled = await Promise.allSettled(
+            batch.map((data) => queue.addCrawlPage(data)),
+          );
+          let failure: unknown;
+          let hasFailure = false;
+          for (const result of settled) {
+            if (result.status === "fulfilled") {
+              pending.push(...result.value);
+            } else if (!hasFailure) {
+              failure = result.reason;
+              hasFailure = true;
+            }
+          }
+          if (hasFailure) throw failure;
         }
         const status = await stateStore.getCrawlStatus(crawlId);
         if (!status) throw new Error(`Crawl ${crawlId} vanished mid-run`);

@@ -1,13 +1,15 @@
 import { NotConfiguredError } from "./errors.js";
 import type { CorePorts } from "./ports/corePorts.js";
 import { createNullPorts } from "./ports/nullPorts.js";
+import { InProcessJobQueue } from "./ports/inProcessJobQueue.js";
+import { createScrapeProcessor, createExtractProcessor } from "./ports/jobProcessors.js";
 import { centsForTier } from "./pricing.js";
 import {
   scrapeUrlCore,
   type ScrapeUrlResult,
   type ScrapeUrlOptions,
 } from "./scrape/scrapeUrlCore.js";
-import { extractPure, type ExtractResult } from "./extract/extractPure.js";
+import type { ExtractResult } from "./extract/extractPure.js";
 import type { ExtractionBackend } from "./extract/extractionPort.js";
 import type {
   SearchBackend,
@@ -16,12 +18,16 @@ import type {
 } from "./search/searchPort.js";
 import {
   pureCrawler,
+  createCrawlPageProcessor,
   type CrawlHandle,
   type CrawlKickoffOptions,
 } from "./crawl/pureCrawler.js";
 import type { StorageState } from "./types.js";
 import { composeFreshness } from "./freshness/composeFreshness.js";
-import { DEFAULT_TIER_CATALOG, type FreshnessTierCatalog } from "./freshness/freshnessTiers.js";
+import {
+  DEFAULT_TIER_CATALOG,
+  type FreshnessTierCatalog,
+} from "./freshness/freshnessTiers.js";
 
 export interface EngineOptions extends Partial<CorePorts> {
   /** Required for engine.extract(); extract throws NotConfiguredError without it. */
@@ -63,8 +69,9 @@ export interface Engine {
   ): Promise<ExtractResult>;
   /** Search via the configured SearchBackend. */
   search(query: string, opts?: SearchOptions): Promise<SearchResponse>;
-  /** Multi-page crawl orchestration (in-process, sequential). Returns a handle
-   *  whose wait() drains to a terminal CrawlStatus. */
+  /** Multi-page crawl orchestration (sequential by default; pass a concurrent
+   *  `queue` for parallelism). Returns a handle whose wait() drains to a
+   *  terminal CrawlStatus. */
   crawl(url: string, opts?: CrawlOptions): Promise<CrawlHandle>;
 }
 
@@ -84,29 +91,65 @@ export function createEngine(options: EngineOptions = {}): Engine {
   const searchBackend = options.searchBackend;
   const tierCatalog = options.freshnessTierCatalog ?? DEFAULT_TIER_CATALOG;
 
-  // Fetch + best-effort cost audit (NoopCostRecorder by default — never throws).
-  // Shared by the direct scrape path and the freshness wrapper, so cost is
-  // recorded exactly once per fetch (a freshness cache HIT skips the fetch and
-  // thus records nothing — parity with the source's zero-cost cache tier).
-  const scrapeAndRecord = async (
-    url: string,
-    opts?: ScrapeUrlOptions,
-  ): Promise<ScrapeUrlResult> => {
-    const result = await scrapeUrlCore(url, opts, {
-      centsForTier,
-      robotsResolver: ports.robotsResolver,
-    });
-    try {
-      await ports.costRecorder.recordAttempts(result.attempts);
-    } catch {
-      /* cost recording must never break a successful scrape */
-    }
-    return result;
-  };
+  // --- job processors -------------------------------------------------------
+  // One pure processor per job type. The in-process default queue runs them
+  // inline; a future remote worker (e.g. a BullMQ-backed adapter) runs them
+  // remotely. Built here so every backend runs identical logic.
 
-  // Freshness (stale-while-revalidate) is OPT-IN: only when the caller sets
-  // `opts.freshnessTier`. Unset → the zero-cache direct path (default).
-  const scrapeWithFreshness = composeFreshness(scrapeAndRecord, {
+  // processScrape = scrapeUrlCore + best-effort cost audit (the function
+  // formerly named scrapeAndRecord). NoopCostRecorder by default — never throws.
+  // (Freshness sits ABOVE the queued fetch: a cache HIT skips the job entirely,
+  // so processScrape never runs and records nothing — see queuedScrape below.)
+  const processScrape = createScrapeProcessor({
+    centsForTier,
+    robotsResolver: ports.robotsResolver,
+    costRecorder: ports.costRecorder,
+  });
+
+  // The crawl-page processor's fetch step is raw scrapeUrlCore (the processor
+  // records cost itself), NOT the cost-recording processScrape.
+  const crawlScrape = (
+    url: string,
+    opts: { storageState?: StorageState; skipRobotsCheck?: boolean },
+  ) => scrapeUrlCore(url, opts, { centsForTier, robotsResolver: ports.robotsResolver });
+  const processCrawlPage = createCrawlPageProcessor({
+    scrape: crawlScrape,
+    stateStore: ports.crawlStateStore,
+    contentStore: ports.contentStore,
+    snapshotStore: ports.snapshotStore,
+    costRecorder: ports.costRecorder,
+  });
+
+  const processExtract = extractionBackend
+    ? createExtractProcessor({
+        scrape: processScrape, // extract's fetch step runs inline — no queue recursion
+        extract: extractionBackend.extract.bind(extractionBackend),
+        centsForTier,
+      })
+    : async () => {
+        throw new NotConfiguredError(
+          "engine.extract",
+          "Pass extractionBackend to createEngine({ extractionBackend }).",
+        );
+      };
+
+  // The default queue runs the processors inline (sequential, zero infra); pass
+  // options.queue (e.g. BullMqJobQueue) to run them on a real runner. Always
+  // set here — createNullPorts only provides a throwing placeholder.
+  ports.queue =
+    options.queue ??
+    new InProcessJobQueue({
+      scrape: processScrape,
+      crawlPage: processCrawlPage,
+      extract: processExtract,
+    });
+
+  // --- scrape ---------------------------------------------------------------
+  // The actual fetch routes through the queue. Freshness (opt-in via
+  // freshnessTier) sits ABOVE the queued fetch: a cache HIT skips the job.
+  const queuedScrape = (url: string, opts?: ScrapeUrlOptions): Promise<ScrapeUrlResult> =>
+    ports.queue.addScrape({ url, options: opts ?? {} });
+  const scrapeWithFreshness = composeFreshness(queuedScrape, {
     cache: ports.freshnessCache,
     tierCatalog,
     clock: ports.clock,
@@ -116,7 +159,7 @@ export function createEngine(options: EngineOptions = {}): Engine {
     opts?: ScrapeUrlOptions,
   ): Promise<ScrapeUrlResult> => {
     if (opts?.freshnessTier) return scrapeWithFreshness(url, opts);
-    return scrapeAndRecord(url, opts);
+    return queuedScrape(url, opts);
   };
 
   const extract = async (
@@ -130,14 +173,12 @@ export function createEngine(options: EngineOptions = {}): Engine {
         "Pass extractionBackend to createEngine({ extractionBackend }).",
       );
     }
-    return extractPure(
-      { url, schema, budgetCents: opts.budgetCents, ignoreRobotsTxt: opts.ignoreRobotsTxt },
-      {
-        scrape,
-        extract: extractionBackend.extract.bind(extractionBackend),
-        centsForTier,
-      },
-    );
+    return ports.queue.addExtract({
+      url,
+      schema,
+      budgetCents: opts.budgetCents,
+      ignoreRobotsTxt: opts.ignoreRobotsTxt,
+    });
   };
 
   const search = async (
@@ -154,20 +195,14 @@ export function createEngine(options: EngineOptions = {}): Engine {
   };
 
   const crawler = pureCrawler({
-    scrape: (url, opts) =>
-      scrapeUrlCore(url, opts, {
-        centsForTier,
-        robotsResolver: ports.robotsResolver,
-      }),
+    scrape: crawlScrape,
     stateStore: ports.crawlStateStore,
     contentStore: ports.contentStore,
     snapshotStore: ports.snapshotStore,
     costRecorder: ports.costRecorder,
+    queue: ports.queue,
   });
-  const crawl = async (
-    url: string,
-    opts: CrawlOptions = {},
-  ): Promise<CrawlHandle> => {
+  const crawl = async (url: string, opts: CrawlOptions = {}): Promise<CrawlHandle> => {
     const bounds: CrawlKickoffOptions = {
       maxDepth: opts.maxDepth ?? 2,
       maxPages: opts.maxPages ?? 50,
