@@ -46,22 +46,39 @@ Key choices:
   runs only what it's given; it never imports `scrapeUrlCore` / pricing /
   extraction backends. So "no infrastructure on import" is preserved (the core
   smoke gate already forbids `bullmq`/`ioredis` in core; this package owns them).
-- **Result via `waitUntilFinished`, with bounded `removeOnComplete` on the
-  Queue.** `removeOnComplete` MUST be on the Queue's `defaultJobOptions` as a
-  bounded count — never on the Worker, never bare `true`: that races
-  `waitUntilFinished` and throws "job not found" (BullMQ #2620). The count caps
-  steady-state Redis growth from transient result storage.
+- **Result via `waitUntilFinished`, bounded by a timeout, with bounded
+  `removeOnComplete` on the Queue.** `addX` awaits the worker's result with a
+  configurable `waitTimeoutMs` (default 2 min) so a hung worker — or no worker
+  running at all — fails fast instead of hanging the crawl `wait()` forever.
+  `removeOnComplete` MUST be on the Queue's `defaultJobOptions` as a bounded
+  count — never on the Worker (broken: BullMQ #2620), never bare `true` (races
+  `waitUntilFinished` → "job not found": BullMQ #85). The count caps steady-state
+  Redis growth from transient result storage.
 - **Worker / QueueEvents connections need `maxRetriesPerRequest: null`** (BullMQ
-  issues blocking commands); `normalizeBlockingConnection` sets it. The producer
+  issues blocking commands); `normalizeBlockingConnection` sets it (and rejects a
+  host-owned instance not so configured with an actionable error). The producer
   (Queue) does not.
 - **`concurrency` stays on `JobQueue`.** BullMQ parallelism is a
   deployment/topology property (producer + workers share one configured width),
   not a per-crawl caller concern; `BullMqJobQueue` exposes it `readonly` from its
   constructor, set to match the worker concurrency so the crawl drain keeps the
   workers fed.
-- **Crash/resume composes for free:** BullMQ delivers at-least-once, and the
-  crawl-page processor's `getPageStatus` idempotency gate makes a redelivered,
-  already-finalized page a no-op (returns `[]`) — no re-scrape, no re-bill.
+- **Errors are observable but flattened.** Every Queue, QueueEvents, and Worker
+  has an `error` listener (an `onError` callback, defaulting to `console.error`)
+  — BullMQ only forwards a connection error once a listener is attached, so
+  without this a Redis partition would silently stall the workers. Across the
+  wire a thrown worker error is serialized to its `.message`, so the producer
+  receives a plain `Error` (the class / `code` / `cause` are lost) — match on
+  `.message`, not `instanceof`, on the producer side.
+- **Crash/resume is safe for finalized pages,** not free of all caveats: BullMQ
+  delivers at-least-once, and the crawl-page processor's `getPageStatus`
+  idempotency gate makes a redelivered, **already-finalized** page a no-op
+  (returns `[]`) — no re-scrape, no re-bill. A crash _before_ finalization
+  re-processes the page; and a crash in the narrow window between
+  `markPageSuccess` and the result return can orphan discovered children (the
+  producer learns of children only via the return value, so a dropped result
+  leaves them pending in the store with the crawl stuck "running"). That window
+  is documented, not yet reconciled — see Revisit if.
 
 ## Consequences
 
@@ -104,3 +121,8 @@ Key choices:
   `CrawlKickoffOptions`).
 - Result payloads exceed the bounded `removeOnComplete` budget — then revisit
   whether scrape/extract results should bypass `waitUntilFinished` storage.
+- The crash-in-the-finalize-window orphan-children case needs closing — e.g. the
+  producer reconciling pending pages from `CrawlStateStore` after each drain
+  batch, or the worker re-emitting children on redelivery. Until then, a worker
+  killed between `markPageSuccess` and the result return yields a stuck "running"
+  crawl requiring manual resume.

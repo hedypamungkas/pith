@@ -5,8 +5,8 @@ import {
 } from "../../src/connection.js";
 
 // All key-free: these exercise the OPTIONS branches only. The ioredis-instance
-// branch is a trivial `instanceof` passthrough covered by the integration suite
-// (constructing an instance key-free would open a socket / emit error events).
+// branch (which guards `maxRetriesPerRequest: null`) is covered by the gated
+// integration suite — constructing an instance key-free would open a socket.
 
 describe("connection normalization", () => {
   it("normalizeQueueConnection passes options through unchanged", () => {

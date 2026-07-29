@@ -30,6 +30,21 @@ export function normalizeQueueConnection(connection: QueueConnection): QueueConn
 export function normalizeBlockingConnection(
   connection: QueueConnection,
 ): QueueConnection {
-  if (connection instanceof Redis) return connection;
+  if (connection instanceof Redis) {
+    // The adapter cannot mutate a host-owned instance, so a shared instance
+    // MUST already be configured for BullMQ's blocking consumers. Reject a
+    // misconfigured one with an actionable error rather than letting BullMQ
+    // throw deep in Worker/QueueEvents construction
+    // ("Your redis options maxRetriesPerRequest must be null").
+    if (connection.options.maxRetriesPerRequest !== null) {
+      throw new Error(
+        "BullMqJobQueue/runWorkers: an ioredis instance used for a Worker or " +
+          "QueueEvents must be created with `maxRetriesPerRequest: null` (a BullMQ " +
+          "blocking-command requirement). Pass connection options instead and the " +
+          "adapter will set it for you.",
+      );
+    }
+    return connection;
+  }
   return { ...connection, maxRetriesPerRequest: null };
 }

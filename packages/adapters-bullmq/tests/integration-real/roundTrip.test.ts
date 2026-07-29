@@ -1,6 +1,8 @@
 import { describe, beforeAll, beforeEach, afterAll, it, expect } from "vitest";
+import { Redis } from "ioredis";
 import { BullMqJobQueue, runWorkers, type WorkerHandle } from "../../src/index.js";
 import { redisFromEnv, type RedisHandle } from "../helpers/redis.js";
+import { createNullPorts, createCrawlPageProcessor } from "@use-pith/core";
 import type {
   ScrapeProcessor,
   CrawlPageProcessor,
@@ -52,6 +54,13 @@ function crawlData(overrides: Partial<CrawlPageJobData> = {}): CrawlPageJobData 
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Each test gets a unique BullMQ key prefix so its producer + workers own an
+// isolated keyspace — no test's worker can ever drain another's queue, even
+// under graceful-close races or parallel files. (Combined with a per-file Redis
+// DB in redisFromEnv, this is bulletproof isolation.)
+let prefixSeq = 0;
+const uniquePrefix = () => `pith-test-${process.pid}-${++prefixSeq}`;
+
 /** Spin up a producer + workers wired to the same Redis, with default no-op
  *  processors overridable per test. Caller MUST close() the handle. */
 async function harness(
@@ -63,13 +72,16 @@ async function harness(
   },
   concurrency?: number,
 ): Promise<{ queue: BullMqJobQueue; workers: WorkerHandle; close: () => Promise<void> }> {
-  const queue = new BullMqJobQueue(redis.connection, { concurrency });
+  const prefix = uniquePrefix();
+  const queue = new BullMqJobQueue(redis.connection, { concurrency, prefix });
   const workers = runWorkers(redis.connection, {
     scrape: processors.scrape ?? noopScrape,
     crawlPage: processors.crawlPage ?? noopCrawlPage,
     extract: processors.extract ?? noopExtract,
     concurrency,
+    prefix,
   });
+  await Promise.all([queue.ready(), workers.ready()]);
   return {
     queue,
     workers,
@@ -81,7 +93,7 @@ describe.skipIf(!process.env.REDIS_URL)("BullMqJobQueue round-trip (real Redis)"
   let redis: RedisHandle;
 
   beforeAll(async () => {
-    redis = await redisFromEnv();
+    redis = await redisFromEnv(1);
   });
   beforeEach(async () => {
     await redis.flushdb();
@@ -179,8 +191,139 @@ describe.skipIf(!process.env.REDIS_URL)("BullMqJobQueue round-trip (real Redis)"
       // Parallelism happened, but never exceeded the worker concurrency.
       expect(peak).toBeGreaterThanOrEqual(2);
       expect(peak).toBeLessThanOrEqual(concurrency);
+      // The producer exposes the configured width for the engine's drain loop.
+      expect(h.queue.concurrency).toBe(concurrency);
     } finally {
       await h.close();
+    }
+  });
+
+  it("exposes no concurrency by default (the drain loop then treats it as 1)", async () => {
+    const h = await harness(redis, {});
+    try {
+      expect(h.queue.concurrency).toBeUndefined();
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("clamps an invalid worker concurrency (0) instead of letting BullMQ reject it", async () => {
+    const prefix = uniquePrefix();
+    const queue = new BullMqJobQueue(redis.connection, { prefix });
+    const workers: WorkerHandle = runWorkers(redis.connection, {
+      scrape: noopScrape,
+      crawlPage: noopCrawlPage,
+      extract: noopExtract,
+      concurrency: 0,
+      prefix,
+    });
+    await Promise.all([queue.ready(), workers.ready()]);
+    try {
+      const result = await queue.addScrape({ url: "https://x.test/", options: {} });
+      expect(result.markdown).toBe("# m"); // worker ran (concurrency clamped to 1)
+    } finally {
+      await workers.close();
+      await queue.close();
+    }
+  });
+
+  it("a redelivered finalized crawl-page job is a no-op (no second scrape, no second bill)", async () => {
+    // Uses the REAL createCrawlPageProcessor + an in-memory CrawlStateStore, so
+    // the getPageStatus idempotency gate runs against genuine state.
+    const base = createNullPorts();
+    let scrapeCalls = 0;
+    const processCrawlPage = createCrawlPageProcessor({
+      scrape: () => {
+        scrapeCalls += 1;
+        return Promise.resolve(SCRAPE_RESULT);
+      },
+      stateStore: base.crawlStateStore,
+      contentStore: base.contentStore,
+    });
+    const h = await harness(redis, { crawlPage: processCrawlPage });
+    try {
+      const pageId = await base.crawlStateStore.createCrawl({
+        id: "c-redeliver",
+        rootUrl: "https://x.test/",
+        apiKeyId: 0,
+        maxDepth: 1,
+        maxPages: 10,
+        sameDomainOnly: true,
+        ignoreRobotsTxt: false,
+      });
+      const job = crawlData({
+        crawlId: "c-redeliver",
+        pageId,
+        url: "https://x.test/",
+        depth: 0,
+        maxDepth: 1,
+      });
+      const first = await h.queue.addCrawlPage(job);
+      const second = await h.queue.addCrawlPage(job); // the redelivery
+
+      expect(scrapeCalls).toBe(1); // scraped exactly once across both deliveries
+      expect(first).toEqual([]); // stub scrape returns no links
+      expect(second).toEqual([]); // redelivery of a finalized page is a no-op
+      expect(await base.crawlStateStore.getPageStatus(pageId)).toBe("success");
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("flattens a typed worker error to its message on the producer side (class/code are lost)", async () => {
+    class RobotsDisallowedError extends Error {
+      readonly code = "ROBOTS_DISALLOWED";
+      constructor() {
+        super("robots disallows https://x.test/");
+        this.name = "RobotsDisallowedError";
+      }
+    }
+    const crawlPage: CrawlPageProcessor = async () => {
+      throw new RobotsDisallowedError();
+    };
+    const h = await harness(redis, { crawlPage });
+    try {
+      let caught: unknown;
+      try {
+        await h.queue.addCrawlPage(crawlData());
+      } catch (e) {
+        caught = e;
+      }
+      expect(caught).toBeInstanceOf(Error);
+      expect(caught).not.toBeInstanceOf(RobotsDisallowedError); // class lost across the wire
+      expect((caught as Error).message).toBe("robots disallows https://x.test/"); // message survives
+    } finally {
+      await h.close();
+    }
+  });
+
+  it("close(force=true) force-stops the workers", async () => {
+    const prefix = uniquePrefix();
+    const queue = new BullMqJobQueue(redis.connection, { prefix });
+    const workers: WorkerHandle = runWorkers(redis.connection, {
+      scrape: noopScrape,
+      crawlPage: noopCrawlPage,
+      extract: noopExtract,
+      prefix,
+    });
+    await Promise.all([queue.ready(), workers.ready()]);
+    await expect(workers.close(true)).resolves.toBeUndefined();
+    await queue.close();
+  });
+
+  it("rejects a host ioredis instance missing maxRetriesPerRequest:null (clear error, not a cryptic BullMQ throw)", async () => {
+    // A real instance built WITHOUT maxRetriesPerRequest:null (defaults to 20) —
+    // the adapter guard must reject it up front with an actionable message.
+    const misconfigured = new Redis({
+      host: redis.connection.host,
+      port: redis.connection.port,
+    });
+    try {
+      expect(() => new BullMqJobQueue(misconfigured)).toThrow(
+        /maxRetriesPerRequest.*null/,
+      );
+    } finally {
+      misconfigured.disconnect();
     }
   });
 });

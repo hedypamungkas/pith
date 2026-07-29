@@ -21,14 +21,16 @@ export const EXTRACT_JOB = "extract";
  *
  * CRITICAL: this lives on the Queue (producer) side, as a BOUNDED count — never
  * on the Worker and never as bare `true`. Setting `removeOnComplete` on the
- * Worker (or unbounded) races `Job.waitUntilFinished`: the worker deletes the
- * completed job before the producer reads its `returnvalue`, throwing
- * "job not found" (BullMQ #2620). A bounded count keeps each completed job's
- * returnvalue readable long enough for the producer to fetch it, while still
- * capping steady-state Redis growth (scrape/extract results — 100s of KB of
- * html each — are stored transiently as returnvalues until reaped).
+ * Worker is broken (BullMQ #2620), and a bare `true` races
+ * `Job.waitUntilFinished`: the job is removed before the producer reads its
+ * `returnvalue`, throwing "job not found" (BullMQ #85). A bounded count keeps
+ * each completed job's returnvalue readable long enough for the producer to
+ * fetch it, while still capping steady-state Redis growth (scrape results —
+ * 100s of KB of html each — are stored transiently as returnvalues until
+ * reaped; crawl-page/extract returnvalues are small). Frozen so a host can't
+ * mutate it back to bare `true` at runtime.
  */
-export const DEFAULT_JOB_OPTIONS: DefaultJobOptions = {
+export const DEFAULT_JOB_OPTIONS: Readonly<DefaultJobOptions> = Object.freeze({
   removeOnComplete: { count: 1000 },
   removeOnFail: { count: 5000 },
-};
+});

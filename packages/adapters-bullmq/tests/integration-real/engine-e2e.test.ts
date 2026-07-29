@@ -44,7 +44,7 @@ describe.skipIf(!process.env.REDIS_URL)(
     let redis: RedisHandle;
 
     beforeAll(async () => {
-      redis = await redisFromEnv();
+      redis = await redisFromEnv(2);
     });
     beforeEach(async () => {
       await redis.flushdb();
@@ -62,7 +62,8 @@ describe.skipIf(!process.env.REDIS_URL)(
         costRecorder: base.costRecorder,
       });
       const concurrency = 2;
-      const queue = new BullMqJobQueue(redis.connection, { concurrency });
+      const prefix = `pith-e2e-${process.pid}`;
+      const queue = new BullMqJobQueue(redis.connection, { concurrency, prefix });
       const workers: WorkerHandle = runWorkers(redis.connection, {
         scrape: createScrapeProcessor({
           centsForTier,
@@ -74,7 +75,9 @@ describe.skipIf(!process.env.REDIS_URL)(
           throw new Error("extract not used in this crawl E2E");
         },
         concurrency,
+        prefix,
       });
+      await Promise.all([queue.ready(), workers.ready()]);
       try {
         const engine = createEngine({
           crawlStateStore: base.crawlStateStore,

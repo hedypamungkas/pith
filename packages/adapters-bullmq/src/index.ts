@@ -11,7 +11,7 @@
  *   import { createEngine, createScrapeProcessor, createCrawlPageProcessor, createExtractProcessor } from "@use-pith/core";
  *   import { BullMqJobQueue, runWorkers } from "@use-pith/adapters-bullmq";
  *
- *   const redis = new Redis(process.env.REDIS_URL); // host-owned
+ *   const redis = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: null }); // host-owned
  *   // engine process: produce jobs through the queue
  *   const pith = createEngine({ queue: new BullMqJobQueue(redis, { concurrency: 8 }) });
  *   // worker process(es): consume jobs with the real-deps processors

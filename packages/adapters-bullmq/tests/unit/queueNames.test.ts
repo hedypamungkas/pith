@@ -25,10 +25,11 @@ describe("queue names (producer ↔ worker agreement)", () => {
   });
 });
 
-describe("DEFAULT_JOB_OPTIONS (the BullMQ #2620 guard)", () => {
+describe("DEFAULT_JOB_OPTIONS (the BullMQ removeOnComplete guard)", () => {
   it("removeOnComplete is a bounded count, never bare true", () => {
-    // Bare `true` (or setting it on the Worker) races `waitUntilFinished` and
-    // throws "job not found". A bounded count keeps the returnvalue readable.
+    // Bare `true` races `waitUntilFinished` (BullMQ #85); on the Worker it is
+    // broken outright (BullMQ #2620). A bounded count keeps the returnvalue
+    // readable until the producer fetches it.
     expect(DEFAULT_JOB_OPTIONS.removeOnComplete).not.toBe(true);
     expect(DEFAULT_JOB_OPTIONS.removeOnComplete).toEqual({ count: 1000 });
   });
@@ -36,5 +37,9 @@ describe("DEFAULT_JOB_OPTIONS (the BullMQ #2620 guard)", () => {
   it("removeOnFail is a bounded count too (Redis growth is capped)", () => {
     expect(DEFAULT_JOB_OPTIONS.removeOnFail).not.toBe(true);
     expect(DEFAULT_JOB_OPTIONS.removeOnFail).toEqual({ count: 5000 });
+  });
+
+  it("is frozen so a host cannot mutate it back to bare true at runtime", () => {
+    expect(Object.isFrozen(DEFAULT_JOB_OPTIONS)).toBe(true);
   });
 });
