@@ -7,9 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`@use-pith/adapters-bullmq`** — a BullMQ/Redis-backed `JobQueue` adapter
+  (`BullMqJobQueue` producer + `runWorkers` worker host), completing the
+  CorePorts adapter set (pg / minio / bullmq). It reuses the same processor
+  factories as the in-process engine and publishes via the `release` workflow's
+  Trusted Publishing (its npm trusted publisher must be registered).
+- `@use-pith/core`: the `JobQueue` port is now the real scrape / crawl-page /
+  extract work seam — `ports.queue` routes all three job types with typed
+  `addScrape` / `addCrawlPage` / `addExtract` and a batched, concurrency-aware
+  crawl drain loop (`Promise.allSettled`). New public exports: `InProcessJobQueue`,
+  `createScrapeProcessor` / `createExtractProcessor`, and the `createCrawlPageProcessor`
+  processor. The in-process default stays behavior-identical to the prior inline path.
+
+### Changed
+
+- The `release` workflow now publishes `@use-pith/adapters-bullmq` alongside core,
+  adapters-pg, and adapters-minio.
+
 ## [0.1.2] - 2026-07-27
 
 ### Changed
+
 - Publishing switched to npm **Trusted Publishing** (keyless OIDC). The `release` workflow no longer uses a long-lived `NPM_TOKEN` secret — npm trusts the GitHub workflow via the trusted-publisher config on the package. Release runner moved to Node 24 (bundles npm ≥ 11.5.1, required for Trusted Publishing).
 
 No code or public-API changes.
@@ -17,6 +37,7 @@ No code or public-API changes.
 ## [0.1.1] - 2026-07-27
 
 ### Changed
+
 - Dropped the npm `downloads` badge from the README (shields.io renders "package not found or too new" for a freshly-published package; it adds nothing yet).
 - CI matrix Node `20, 22` → `22, 24`; release workflow Node `20` → `22` — silences the GitHub Actions "Node.js 20 is deprecated" runner warning.
 
@@ -35,7 +56,7 @@ by default.
 - **Engine core** (`createEngine`):
   - **Scrape**: URL → clean Markdown via two-tier fetch with automatic
     static→headless escalation; defense-in-depth content cleaning strips
-    boilerplate *before* running Readability.
+    boilerplate _before_ running Readability.
   - **Crawl**: breadth/depth-bounded site traversal with URL deduplication and
     worker-death resume (crawls survive interruption and continue from where
     they left off).
