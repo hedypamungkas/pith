@@ -37,7 +37,7 @@
     "minimatch": "^10.2.5",
     "robots-parser": "^3.0.1",
     "turndown": "^7.2.0",
-    "zod": "^3.23.8"
+    "zod": "^4.4.3"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
