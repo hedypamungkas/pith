@@ -71,3 +71,9 @@ jobs:
       - name: Publish @use-pith/adapters-minio
         working-directory: packages/adapters-minio
         run: npm publish
+
+      # Same keyless publish for the BullMQ adapter. Its trusted publisher
+      # (@use-pith/adapters-bullmq) must be registered on npmjs.com too.
+      - name: Publish @use-pith/adapters-bullmq
+        working-directory: packages/adapters-bullmq
+        run: npm publish
