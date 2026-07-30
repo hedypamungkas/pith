@@ -41,7 +41,7 @@
     "tsup": "^8.3.0",
     "typescript": "^5.5.4",
     "typescript-eslint": "^8.4.0",
-    "vitest": "^2.0.5",
+    "vitest": "^4.1.10",
     "zod-to-json-schema": "^3.25.2"
   }
 }
