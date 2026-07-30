@@ -70,7 +70,7 @@
   },
   "peerDependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "fastify": "^4.28.1",
+    "fastify": "^4.28.1 || ^5.0.0",
     "playwright": "^1.61.0",
     "zod-to-json-schema": "^3.25.2"
   },
