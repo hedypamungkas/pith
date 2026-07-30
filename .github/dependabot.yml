@@ -1,7 +1,19 @@
 version: 2
-# Updates are grouped to keep PR noise low. Major version bumps are NOT grouped —
-# they get their own PR so breaking changes are reviewed deliberately.
+# npm minor + patch updates are grouped AND auto-merged once CI is green, so the
+# recurring minor/patch stream self-resolves instead of accumulating (#15/#22/#27
+# were this cadence). The repo's key-free CI matrix (typecheck/lint/build + 251
+# unit + smoke + integration) is a reliable gate for low-risk semver updates.
+#
+# Major bumps stay in their own, NON-auto-merged PRs so breaking changes are
+# reviewed deliberately — eslint 10, vitest 4, TypeScript 7, and zod 4 are
+# currently deferred for exactly this reason (each is ecosystem-blocked or
+# invasive; see the closed dependabot PRs for per-dep rationale).
+#
+# REQUIRES the repo setting: Settings → General → Pull Requests → "Allow
+# auto-merge" enabled. Without it, dependabot still opens the PRs but won't
+# auto-merge them.
 updates:
+  # --- npm: minor + patch (grouped, auto-merged) ---
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
@@ -11,13 +23,31 @@ updates:
     commit-message:
       prefix: "chore(deps)"
       include: "scope"
+    allow:
+      - update-type: "version-update:semver-minor"
+      - update-type: "version-update:semver-patch"
     groups:
       npm-minor-and-patch:
         update-types:
           - "minor"
           - "patch"
-    # Root devDependencies live here; the publishable workspace package
-    # (packages/core) is covered by this scan too.
+    auto-merge:
+      enabled: true
+      automerge-strategy: "merge"
+  # --- npm: major (manual review, one PR per breaking bump) ---
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    allow:
+      - update-type: "version-update:semver-major"
+
+  # --- GitHub Actions: grouped minor/patch + individual major, all manual ---
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
