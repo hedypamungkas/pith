@@ -32,7 +32,7 @@
     "registry": "https://registry.npmjs.org/"
   },
   "dependencies": {
-    "bullmq": "^5.81.3",
+    "bullmq": "^6.0.2",
     "ioredis": "^5.11.1"
   },
   "peerDependencies": {
