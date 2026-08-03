@@ -28,7 +28,7 @@
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@types/jsdom": "^21.1.7",
-    "@types/minimatch": "^5.1.2",
+    "@types/minimatch": "^6.0.0",
     "@types/node": "^26.1.2",
     "@types/turndown": "^5.0.4",
     "eslint": "^9.10.0",
