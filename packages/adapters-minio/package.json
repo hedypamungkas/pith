@@ -37,8 +37,8 @@
     "@use-pith/adapters-pg": { "optional": true, "reason": "Only MinioFreshnessCache needs a Postgres Queryable for its freshness_meta metadata; MinioContentStore/MinioSnapshotStore are pure-MinIO." }
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.4",
-    "@types/pg": "^8.20.0"
+    "@electric-sql/pglite": "^0.5.5",
+    "@types/pg": "^8.21.0"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

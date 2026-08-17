@@ -31,7 +31,7 @@
     "registry": "https://registry.npmjs.org/"
   },
   "dependencies": {
-    "pg": "^8.22.0"
+    "pg": "^8.23.0"
   },
   "peerDependencies": {
     "@use-pith/core": "^0.1.0"
@@ -62,7 +62,7 @@
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.4",
-    "@types/pg": "^8.20.0"
+    "@electric-sql/pglite": "^0.5.5",
+    "@types/pg": "^8.21.0"
   }
 }
