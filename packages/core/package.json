@@ -33,7 +33,7 @@
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
     "ajv": "^8.20.0",
-    "jsdom": "^30.0.1",
+    "jsdom": "^30.1.3",
     "minimatch": "^10.2.6",
     "robots-parser": "^3.0.1",
     "turndown": "^7.2.0",
